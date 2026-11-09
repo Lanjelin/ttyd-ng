@@ -68,6 +68,11 @@ and every payload arrives intact. Use it with a binary built with
   `TTYD_BINARY=$(pwd)/../build/cross/x86_64/ttyd npx ... playwright test -g
   "option-like argument"`. It still passes against the default glibc
   `build/native` binary, which does not reproduce the parsing defect.
+- Another test sends a never-finished fragmented message, prefixed with
+  `JSON_DATA` to bypass the pre-authentication command check, totaling more
+  than the 10 MiB `MAX_MESSAGE_SIZE` cap; it asserts the connection is
+  closed instead of growing the receive buffer without limit, and that a
+  fresh authenticated session still works afterward.
 - Each server binds to `127.0.0.1` on an OS-assigned port and runs only the
   deterministic Python fixture. No test exposes an interactive shell.
 - The fixture records observed input, PTY dimensions and lifecycle events in a

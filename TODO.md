@@ -51,16 +51,28 @@ see linked upstream issues/PRs for original reports.
   [#1576](https://github.com/tsl0922/ttyd/pull/1576); the permutation defect
   is not filed upstream.
 
-## Security / crash — do before anything else
-
-- [ ] **Unauthenticated WebSocket message size is unbounded.**
-  `src/protocol.c` grows `pss->buffer` via `xrealloc(pss->buffer, pss->len +
-  len)` with no cap, and the authentication check only runs after that growth
+- [x] **Unauthenticated WebSocket message size was unbounded.**
+  `src/protocol.c` grew `pss->buffer` via `xrealloc(pss->buffer, pss->len +
+  len)` with no cap, and the authentication check only ran after that growth
   for any message whose first byte isn't `JSON_DATA`. An unauthenticated
-  client can force unbounded memory growth before the connection is rejected.
-  Not reproduced locally; code matches the report exactly.
-  Matches [tsl0922/ttyd#1544](https://github.com/tsl0922/ttyd/pull/1544)
-  (add a `MAX_MESSAGE_SIZE` cap, close the connection on overflow).
+  client could force unbounded memory growth before the connection was
+  rejected, by prefixing a never-finished fragmented message with `JSON_DATA`
+  (`{`) to bypass the pre-auth command gate.
+  Fixed with upstream's exact approach: a 10 MiB `MAX_MESSAGE_SIZE` cap
+  checked on both the initial allocation and every subsequent `xrealloc`,
+  closing the connection on overflow regardless of auth state or command
+  type. 10 MiB was chosen because it comfortably exceeds any realistic
+  single terminal message (tested up to 1 MiB/32 KiB elsewhere in this
+  suite; trzsz/zmodem chunk their own protocol well below it), so normal
+  pastes and file transfers are unaffected.
+  Regression test added (`tests/protocol/session.spec.mjs`): a `-c`-protected
+  server sent an unfinished 12 MiB fragmented message starting with `{`;
+  verified the connection is closed, no events leak through, and a fresh
+  authenticated session still works. Confirmed the test fails (hangs/never
+  closes) with the cap reverted, and passes with it restored.
+  Matches [tsl0922/ttyd#1544](https://github.com/tsl0922/ttyd/pull/1544).
+
+## Security / crash — do before anything else
 
 - [ ] **mTLS may reject valid client certificates on newer OpenSSL.**
   `src/http.c`'s `LWS_CALLBACK_OPENSSL_PERFORM_CLIENT_CERT_VERIFICATION`

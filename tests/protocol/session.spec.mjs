@@ -370,3 +370,29 @@ test('malformed handshake is isolated and a fresh session still works', async ({
     await expect.poll(() => malformed.close !== null).toBe(true);
     await assertRecovery(harness, server);
 });
+
+test('an oversized fragmented message is rejected instead of growing the receive buffer without limit', async ({ harness }) => {
+    // Regression for unbounded pss->buffer growth via xrealloc: a message
+    // prefixed with JSON_DATA ('{') bypasses the pre-authentication command
+    // check, so an attacker who never sends a valid AuthToken could otherwise
+    // keep extending one fragmented message forever. MAX_MESSAGE_SIZE caps
+    // the accumulated length regardless of auth state or command type.
+    const server = await harness.start({ args: ['-W', '-c', 'tester:secret'] });
+    const headers = { Authorization: `Basic ${Buffer.from('tester:secret').toString('base64')}` };
+    const session = harness.connect(server, { headers });
+    await session.waitOpen();
+    const chunk = Buffer.alloc(6 * 1024 * 1024, 0x61);
+    chunk[0] = '{'.charCodeAt(0);
+    await session.send(chunk, { binary: true, fin: false });
+    // Second fragment pushes the cumulative size past the 10 MiB cap.
+    await session.send(Buffer.alloc(6 * 1024 * 1024, 0x61), { binary: true, fin: false });
+    await expect.poll(() => session.close !== null || session.socket.readyState === WebSocket.CLOSED).toBe(true);
+    expect(await events(server)).toEqual([]);
+    expect(server.process.exitCode, server.logs()).toBeNull();
+    expect(server.process.signalCode, server.logs()).toBeNull();
+    const authToken = await token(server, headers);
+    const recovered = harness.connect(server, { headers });
+    await ready(server, recovered, { token: authToken });
+    await recovered.input('echo recovered\n');
+    await expect.poll(() => recovered.output).toContain('ECHO:recovered\r\n');
+});

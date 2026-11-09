@@ -94,14 +94,34 @@ see linked upstream issues/PRs for original reports.
   Matches [tsl0922/ttyd#1583](https://github.com/tsl0922/ttyd/issues/1583) /
   [#1584](https://github.com/tsl0922/ttyd/pull/1584).
 
-## Correctness bugs
-
-- [ ] **PTY reads can stall permanently.** `src/pty.c`'s `read_cb` calls
-  `uv_read_stop()` before checking the result; on `n == 0` or `UV_ENOBUFS` it
-  returns without ever restarting the read or freeing the allocated buffer.
-  Per libuv, `nread == 0` is not EOF, so the terminal goes silent until ttyd is
-  restarted. Not reproduced locally.
+- [x] **PTY reads could stall permanently.** `src/pty.c`'s `read_cb` called
+  `uv_read_stop()` unconditionally, then for `n == 0` or `UV_ENOBUFS`
+  returned without ever restarting the read or freeing the allocated
+  buffer. Per libuv, `nread == 0` is EAGAIN/a spurious wakeup, not EOF; the
+  reported trigger is pty file-descriptor reuse under session churn (a
+  stale epoll readiness event for a just-closed pty landing on a new
+  session's pty that reused the same fd number), leaving that connection's
+  terminal blank forever, with the WebSocket staying open on pings.
+  Fixed with upstream's exact approach: restart the read
+  (`uv_read_start(stream, alloc_cb, read_cb)`) and free the buffer on that
+  branch instead of returning early.
+  **Not reproduced locally**: wrote a churn stress test (many concurrent
+  short-lived sessions opened/closed rapidly) and ran it up to 3200
+  sessions at concurrency 80, including abrupt `terminate()` closes, against
+  the unfixed code; zero stalls. Upstream's own PR frames this as
+  hard to reproduce outside specific conditions (~1% with a short-lived
+  exec, much higher with `login`'s heavier syscall profile, or real
+  multi-user production load over hours); this sandbox's kernel/libuv
+  combination apparently doesn't trigger the specific stale-epoll-event
+  condition even at that volume. The fix is applied on the strength of
+  libuv's documented `nread == 0` contract and two independent real-world
+  production reproductions in the upstream PR (one with a 900-session
+  reproducer showing 137/300 stalled before, 0/900 after), not a fresh local
+  repro. No regression test was added (would pass on both fixed and unfixed
+  code here, so it wouldn't actually test anything).
   Matches [tsl0922/ttyd#1573](https://github.com/tsl0922/ttyd/pull/1573).
+
+## Correctness bugs
 
 - [ ] **`--check-origin` always fails over HTTP/2.** `check_host_origin()` in
   `src/protocol.c` reads `WSI_TOKEN_HOST`, which HTTP/2 never populates (the

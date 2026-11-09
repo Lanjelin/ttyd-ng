@@ -66,7 +66,16 @@ static void read_cb(uv_stream_t *stream, ssize_t n, const uv_buf_t *buf) {
   uv_read_stop(stream);
   pty_process *process = (pty_process *) stream->data;
   if (n <= 0) {
-    if (n == UV_ENOBUFS || n == 0) return;
+    if (n == UV_ENOBUFS || n == 0) {
+      // n == 0 is libuv's EAGAIN: the fd polled readable but read() had
+      // nothing (a spurious wakeup, which pty masters do produce, notably on
+      // fd reuse right after a prior session's pty closed). uv_read_stop()
+      // above already stopped reading, so it MUST be restarted here, or this
+      // pty is never read again for the life of the connection: a
+      // permanently blank terminal that only a ttyd restart clears.
+      uv_read_start(stream, alloc_cb, read_cb);
+      goto done;
+    }
     process->read_cb(process, NULL, true);
     goto done;
   }

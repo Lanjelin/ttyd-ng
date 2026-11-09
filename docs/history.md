@@ -456,3 +456,40 @@ from-source OpenSSL 4.1.0 build, not just a build flag of the existing
 pinned stack (contrast the compression fix's `TTYD_LWS_PMD_TRUSTED`), which
 is too heavy to run on every CI invocation. This entry is the verification
 record; `docs/releasing.md` notes when to re-run it by hand.
+
+## PTY read stall on fd reuse (2026-11-09)
+
+Fixed an upstream-reported bug (tsl0922/ttyd#1573): `read_cb` in `src/pty.c`
+called `uv_read_stop()` unconditionally, then for a zero-byte read (libuv's
+documented EAGAIN, not EOF) or `UV_ENOBUFS` returned without ever restarting
+the read or freeing the allocated buffer. The reported trigger is pty file
+descriptor reuse under session churn: a session's pty closes, a new
+session's pty reuses the same fd number, and a stale epoll readiness event
+for the old fd lands on the new handle, producing a spurious zero-byte read
+that then stops that pty from ever being read again. Symptom: the WebSocket
+opens normally and stays open (pings keep flowing) but the terminal is blank
+forever; only a full ttyd restart clears it. The upstream PR documents two
+independent real-world reproductions: 137/300 stalled sessions in a 900-session
+stress reproducer against `login` before the fix, 0/900 after; 2-3 blank
+terminals out of 20 concurrent real users in production, 0 after.
+
+Fixed by restarting the read (`uv_read_start(stream, alloc_cb, read_cb)`) and
+freeing the buffer on that branch instead of returning early, matching the
+upstream PR verbatim.
+
+Attempted to reproduce the race locally before concluding the fix was
+correct by inspection alone. Wrote a churn stress test opening many
+concurrent short-lived sessions against one ttyd instance, each waiting for
+its `READY` output before closing: 300 sessions (20 concurrent) against the
+unfixed code showed 0 stalls; scaled to 2000 sessions (40 concurrent), still
+0; scaled to 3200 sessions (80 concurrent) with abrupt `terminate()` closes
+(TCP RST, no WS close handshake) instead of clean closes, still 0. Upstream's
+own PR already frames the race as rare outside specific conditions (about 1%
+with a short-lived exec under a plain reproducer, much higher with `login`'s
+heavier syscall profile, or real multi-user production load over hours); this
+sandbox's kernel/libuv combination did not trigger the specific stale-epoll
+condition even at 3200 sessions. The fix was applied on the strength of
+libuv's documented `nread == 0` contract and the upstream PR's two
+independent production reproductions, not a fresh local repro. No regression
+test was added: it would have passed on both the fixed and unfixed code here,
+so it would not actually test anything.

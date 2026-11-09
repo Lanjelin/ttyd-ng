@@ -20,6 +20,11 @@ replace validation of the commit being released.
   investigate failures using its uploaded diagnostics rather than retrying them
   away. This covers keyboard input, read-only enforcement, authentication/origin
   boundaries, resize, base paths, lifecycle and unavailable-WebGL fallback.
+  mTLS's client-certificate verification was fixed for OpenSSL >=4.1.0 (see
+  `docs/history.md`'s 2026-11-09 entry) using a from-source OpenSSL build;
+  that reproduction is not part of routine CI. Re-run it by hand if the
+  pinned/system OpenSSL approaches 4.x, or periodically against current
+  OpenSSL to catch a regression or a related verification-timing change.
 - Exercise clipboard, sixel and ZMODEM/trzsz transfers. Compilation alone does
   not verify these integrations. When font behavior changes, validate loading,
   authentication/base paths, fallback, reconnect and terminal measurements;

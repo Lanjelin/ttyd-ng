@@ -91,6 +91,7 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
 | WebSocket `permessage-deflate` is not registered against libwebsockets >=4.4.0 by default, avoiding a dropped connection (4.5.x) or silent data truncation (5.1.0) on large compressed messages such as browser pastes; see the open risk below | [#1532](https://github.com/tsl0922/ttyd/issues/1532) |
 | A musl static binary no longer crashes, nor silently drops the command, when the command's own trailing argument looks like a ttyd option taking a value (e.g. `bash -i`) (`src/server.c`) | [#1575](https://github.com/tsl0922/ttyd/issues/1575) / [#1576](https://github.com/tsl0922/ttyd/pull/1576) |
 | An unauthenticated client can no longer grow a fragmented WebSocket message's receive buffer without limit; a 10 MiB `MAX_MESSAGE_SIZE` cap closes the connection instead (`src/protocol.c`) | [#1544](https://github.com/tsl0922/ttyd/pull/1544) |
+| mTLS no longer rejects valid client certificates on OpenSSL >=4.1.0, by checking `preverify_ok` instead of a not-yet-updated `SSL_get_verify_result()` (`src/http.c`); reproduced against a from-source OpenSSL 4.1.0 build, see `docs/history.md` | [#1583](https://github.com/tsl0922/ttyd/issues/1583) / [#1584](https://github.com/tsl0922/ttyd/pull/1584) |
 
 ## Open risks and deliberately retained limits
 

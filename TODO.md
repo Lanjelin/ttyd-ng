@@ -72,17 +72,27 @@ see linked upstream issues/PRs for original reports.
   closes) with the cap reverted, and passes with it restored.
   Matches [tsl0922/ttyd#1544](https://github.com/tsl0922/ttyd/pull/1544).
 
-## Security / crash — do before anything else
-
-- [ ] **mTLS may reject valid client certificates on newer OpenSSL.**
+- [x] **mTLS rejected valid client certificates on newer OpenSSL.**
   `src/http.c`'s `LWS_CALLBACK_OPENSSL_PERFORM_CLIENT_CERT_VERIFICATION`
-  handler calls `SSL_get_verify_result()`, which upstream reports is not yet
-  final inside that callback on OpenSSL 4.1.0; libwebsockets already passes
-  `preverify_ok` as `len`, which should be used instead. Not reproduced here
-  (our pinned OpenSSL is 3.5.9 LTS); dependency-version-sensitive.
+  handler called `SSL_get_verify_result()`, which is not yet updated inside
+  that callback on OpenSSL 4.1.0; libwebsockets already passes
+  `preverify_ok` as `len`, which should be used instead.
+  **Reproduced**: our pinned/system OpenSSL (3.5.9 LTS / 3.6.5) both predate
+  4.1.0 and don't show it, so built OpenSSL 4.1.0 from source plus a
+  libwebsockets 4.5.8 rebuild against it (full details and exact commands in
+  `docs/history.md`'s 2026-11-09 entry). Got the literal upstream error,
+  `client certificate verification error: ok (0), depth: 1`, for a valid
+  CA-signed client certificate.
+  Fixed with upstream's exact approach (`!len` only). Reverified on the same
+  OpenSSL 4.1.0 stack: valid cert now reaches `/token` (200); untrusted
+  (self-signed) and missing client certs are still rejected, at both the TLS
+  and application layer. No regression in the local suite (system OpenSSL,
+  doesn't exercise this path).
+  No automated regression test: reproducing this needs a from-source OpenSSL
+  4.1.0 build, not just a build flag of the existing stack, too heavy for
+  routine CI. `docs/releasing.md` notes when to re-run it by hand.
   Matches [tsl0922/ttyd#1583](https://github.com/tsl0922/ttyd/issues/1583) /
-  [#1584](https://github.com/tsl0922/ttyd/pull/1584). Pair the fix with a
-  regression test since it only manifests on specific OpenSSL versions.
+  [#1584](https://github.com/tsl0922/ttyd/pull/1584).
 
 ## Correctness bugs
 

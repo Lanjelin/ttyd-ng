@@ -421,3 +421,38 @@ headless Chromium on the libwebsockets 5.1.0 build (compression off), with both
 `trzsz` 1.1.6 (Python) and 1.2.0 (Go) server tools. The browser's file pickers were
 stubbed in-page because headless Chromium cannot show them; the protocol traffic
 was real. Not exercised: SIXEL, tmux itself, and real file-picker dialogs.
+
+## mTLS rejects valid client certificates on OpenSSL >=4.1.0 (2026-11-09)
+
+Investigated an upstream report (tsl0922/ttyd#1583/#1584) that mTLS rejects
+valid client certificates on OpenSSL 4.1.0, with
+`client certificate verification error: ok (0), depth: 1`. The pinned cross
+OpenSSL (3.5.9 LTS) and the local system's (3.6.5) both predate the change and
+do not reproduce it; OpenSSL 4.x is not yet packaged by any distro used here.
+
+Built OpenSSL 4.1.0 from its official source tarball into an isolated prefix,
+then rebuilt libwebsockets 4.5.8 (the project's pinned version) and a separate
+ttyd against it, all linked to confirm (`ldd`: `libssl.so.4`/`libcrypto.so.4`
+from the custom prefix, not the system's `libssl.so.3`). Generated a local CA,
+server cert and CA-signed client cert.
+
+Reproduced exactly: `ttyd -S -C server.pem -K key.pem -A ca.pem -W bash`
+rejected the CA-signed client cert with the literal upstream error string,
+and `openssl s_client`/`curl --cert` both failed the handshake. The root
+cause matches the report: `src/http.c`'s
+`LWS_CALLBACK_OPENSSL_PERFORM_CLIENT_CERT_VERIFICATION` handler called
+`SSL_get_verify_result()`, which is not yet updated inside that callback.
+
+Fixed by using only `!len` (`preverify_ok`, which libwebsockets already
+passes), matching PR #1584 verbatim. Rebuilt and reverified against the same
+OpenSSL 4.1.0 stack: valid client cert now reaches `/token` (HTTP 200);
+untrusted (self-signed, not CA-signed) and missing client certs are still
+rejected, confirmed both at the TLS layer (`s_client`) and the application
+layer (`curl`). The local `tests/` suite (system OpenSSL 3.6.5) shows no
+regression, but does not exercise this path.
+
+No automated regression test was added: reproducing this requires a
+from-source OpenSSL 4.1.0 build, not just a build flag of the existing
+pinned stack (contrast the compression fix's `TTYD_LWS_PMD_TRUSTED`), which
+is too heavy to run on every CI invocation. This entry is the verification
+record; `docs/releasing.md` notes when to re-run it by hand.

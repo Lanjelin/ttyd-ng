@@ -25,9 +25,14 @@ replace validation of the commit being released.
   authentication/base paths, fallback, reconnect and terminal measurements;
   account for browser-side remote font restrictions.
 - Run the full cross-build matrix, particularly 32-bit, Windows and s390x, and
-  validate MSVC in its actual Windows environment. Cross outputs are
-  `build/cross/<requested BUILD_TARGET>/ttyd` (`ttyd.exe` for win32), preserving
-  requested aliases; native outputs are separate under `build/native`.
+  validate MSVC in its actual Windows environment. For a musl target (e.g.
+  `build/cross/x86_64/ttyd`), also run the command-parsing regression test
+  against it directly: `TTYD_BINARY=$(pwd)/build/cross/x86_64/ttyd npx ...
+  playwright test -g "option-like argument"` from `tests/`. It does not
+  reproduce against the glibc native binary, so the standard suite run does
+  not cover it. Cross outputs are `build/cross/<requested BUILD_TARGET>/ttyd`
+  (`ttyd.exe` for win32), preserving requested aliases; native outputs are
+  separate under `build/native`.
 - Build and run both container variants using updated static binaries.
 - Validate workflow syntax and image tags. Confirm repository/package permissions
   and explicit release intent before pushing a tag: the workflow publishes

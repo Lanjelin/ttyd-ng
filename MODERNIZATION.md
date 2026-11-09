@@ -89,6 +89,7 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
 | `lws_service()` is called in a loop until shutdown, fixing immediate exit against libwebsockets >=5.1, which runs one event-loop turn per call (`src/server.c`) | [#1589](https://github.com/tsl0922/ttyd/pull/1589) |
 | Empty WebSocket messages no longer dereference a null receive buffer; empty continuation frames preserve accumulated data | [#1546](https://github.com/tsl0922/ttyd/issues/1546) / [#1574](https://github.com/tsl0922/ttyd/pull/1574) |
 | WebSocket `permessage-deflate` is not registered against libwebsockets >=4.4.0 by default, avoiding a dropped connection (4.5.x) or silent data truncation (5.1.0) on large compressed messages such as browser pastes; see the open risk below | [#1532](https://github.com/tsl0922/ttyd/issues/1532) |
+| A musl static binary no longer crashes, nor silently drops the command, when the command's own trailing argument looks like a ttyd option taking a value (e.g. `bash -i`) (`src/server.c`) | [#1575](https://github.com/tsl0922/ttyd/issues/1575) / [#1576](https://github.com/tsl0922/ttyd/pull/1576) |
 
 ## Open risks and deliberately retained limits
 

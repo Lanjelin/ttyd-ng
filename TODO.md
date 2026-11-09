@@ -18,22 +18,40 @@ see linked upstream issues/PRs for original reports.
   regression suite plus CLI-options check still pass.
   Matches upstream [tsl0922/ttyd#1550](https://github.com/tsl0922/ttyd/pull/1550).
 
-## Security / crash — do before anything else
-
-- [ ] **Static (musl) release binaries can crash on startup.**
-  `calc_command_start()` in `src/server.c` copies `argv` into a buffer sized
-  exactly `argc`, with no NULL terminator, then runs `getopt_long` over it. If
-  the user's command ends in something that looks like a ttyd option taking a
-  value (e.g. `bash -i`), musl's `getopt` permutes one slot past the end of the
-  heap buffer; the corruption is detected and traps at `free()`.
+- [x] **Static (musl) release binaries can crash on startup, and even a
+  NULL-terminator-only fix still misparses the command.**
+  `calc_command_start()` in `src/server.c` copied `argv` into a buffer sized
+  exactly `argc`, with no NULL terminator, then ran `getopt_long` over it. A
+  command ending in something that looks like a ttyd option taking a value
+  (e.g. `bash -i`) made musl's `getopt` permute one slot past the end of the
+  heap buffer; the corruption trapped at `free()`.
   **Reproduced locally**: `build/cross/x86_64/ttyd -i 127.0.0.1 -p 0 -W bash -i`
-  exits 139 (SIGSEGV); the glibc `build/native` binary with the identical
-  command line does not crash. This affects every static/Alpine/container
-  build currently shipped.
+  exited 139 (SIGSEGV); the glibc `build/native` binary with the identical
+  command line did not crash. Upstream's proposed fix
+  ([#1576](https://github.com/tsl0922/ttyd/pull/1576), NULL-terminate the copy)
+  was never run against a real musl binary ("Not built or run here" per the
+  PR). **Verified that fix alone is insufficient**: applied in isolation, the
+  crash is gone, but GNU getopt permutation keeps scanning past the command
+  for more options and misreads the command's own trailing `-i` as ttyd's own
+  `-i <interface>`, leaving no command at all (`ttyd: missing start command`).
+  This additional defect is musl-specific in practice — the same input parses
+  correctly on the glibc `build/native` binary even without the second fix,
+  matching the upstream issue's own caveat ("glibc builds may not show the
+  problem").
+  Fixed here with both: the NULL terminator (freeing through index `argc`
+  inclusive, since permutation can move a string there), plus a `+` prefix on
+  the `getopt_long` optstring used only for this pre-scan, which disables
+  permutation so it stops at the first non-option (the command) instead of
+  scanning through it. Verified: all of `bash -i`, `bash -l`, `bash
+  --noprofile`, and `-- bash -i` now produce the correct
+  `start command: ...` log line on the musl cross binary with no crash;
+  regression test added in `tests/protocol/session.spec.mjs` (also passes
+  unchanged on `build/native`); full suite and CLI-options check pass.
   Matches [tsl0922/ttyd#1575](https://github.com/tsl0922/ttyd/issues/1575) /
-  [#1576](https://github.com/tsl0922/ttyd/pull/1576) (NULL-terminate the argv
-  copy, and free through the terminator slot since getopt permutation can move
-  a string there).
+  [#1576](https://github.com/tsl0922/ttyd/pull/1576); the permutation defect
+  is not filed upstream.
+
+## Security / crash — do before anything else
 
 - [ ] **Unauthenticated WebSocket message size is unbounded.**
   `src/protocol.c` grows `pss->buffer` via `xrealloc(pss->buffer, pss->len +

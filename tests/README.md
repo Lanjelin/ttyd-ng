@@ -60,6 +60,14 @@ and every payload arrives intact. Use it with a binary built with
   messages, and malformed-message service survival.
   Empty WebSocket frames are covered both as standalone messages and as initial,
   intermediate and final fragments of authenticated/session payloads.
+- One test starts ttyd with a command ending in an option-like argument
+  (`bash -i`, no `--` separator) and asserts both that the process stays up
+  and that it logs the correct `start command:` line. This only exercises the
+  historical crash/misparse on a musl static binary; set `TTYD_BINARY` to a
+  `build/cross/<target>/ttyd` musl build to actually cover it, for example
+  `TTYD_BINARY=$(pwd)/../build/cross/x86_64/ttyd npx ... playwright test -g
+  "option-like argument"`. It still passes against the default glibc
+  `build/native` binary, which does not reproduce the parsing defect.
 - Each server binds to `127.0.0.1` on an OS-assigned port and runs only the
   deterministic Python fixture. No test exposes an interactive shell.
 - The fixture records observed input, PTY dimensions and lifecycle events in a

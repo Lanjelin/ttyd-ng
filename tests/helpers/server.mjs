@@ -42,16 +42,20 @@ function basePath(args) {
 }
 
 /** Start one loopback-only ttyd instance and its controlled PTY fixture. */
-export async function startServer({ args = [], mode = 'interactive' } = {}) {
+export async function startServer({ args = [], mode = 'interactive', command, separator = true } = {}) {
     if (process.platform !== 'linux') throw new Error('The ttyd E2E harness currently requires Linux');
     if (!['interactive', 'exit'].includes(mode)) throw new Error(`Unknown fixture mode: ${mode}`);
     const directory = await mkdtemp(join(tmpdir(), 'ttyd-e2e-'));
     const eventsPath = join(directory, 'events.jsonl');
     await writeFile(eventsPath, '');
     const binary = resolve(root, process.env.TTYD_BINARY || 'build/native/ttyd');
+    // `command` lets a test supply the trailing argv verbatim (e.g. to exercise
+    // option-like trailing command arguments); `separator` controls whether the
+    // default `--` is inserted ahead of it.
+    const trailing = command ?? [process.env.PYTHON || 'python3', fixture, eventsPath, mode];
     const child = spawn(binary, [
-        ...args, '-i', '127.0.0.1', '-p', '0', '--',
-        process.env.PYTHON || 'python3', fixture, eventsPath, mode,
+        ...args, '-i', '127.0.0.1', '-p', '0', ...(separator ? ['--'] : []),
+        ...trailing,
     ], { cwd: root, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let captured = '';
     let spawnError;

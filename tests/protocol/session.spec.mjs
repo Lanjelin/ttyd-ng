@@ -227,6 +227,21 @@ test('origin checking rejects a mismatch and accepts the exact loopback origin',
     await expect.poll(() => session.output).toContain('ECHO:matching-origin\r\n');
 });
 
+test('a start command ending in an option-like argument is parsed as the command, not re-parsed by ttyd', async ({ harness }) => {
+    // Regression for an argv-copy heap overflow (musl static binaries only:
+    // calc_command_start() permuted one pointer past its copy's end and
+    // crashed at free()) plus a parsing bug where GNU getopt permutation kept
+    // scanning past the command for more options, misreading the command's
+    // own trailing `-i` as ttyd's `-i <interface>` and leaving no command at
+    // all. No `--` separator is given here; that already works and is not
+    // the scenario being guarded.
+    const server = await harness.start({ command: ['bash', '-i'], separator: false });
+    expect(server.logs()).toContain('start command: bash -i');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect(server.process.exitCode).toBeNull();
+    expect(server.process.signalCode).toBeNull();
+});
+
 test('fragmented handshake and input are reassembled exactly once', async ({ harness }) => {
     const server = await harness.start({ args: ['-W', '-c', 'fragment:secret'] });
     const headers = { Authorization: `Basic ${Buffer.from('fragment:secret').toString('base64')}` };

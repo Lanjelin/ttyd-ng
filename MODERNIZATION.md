@@ -77,6 +77,19 @@ the new native or requested-target path. Release asset names remain unchanged.
   No branch-driven `latest`/`alpine` aliases are used.
   Distribution packages and upstream releases remain separate from this fork.
 
+## Upstream defects fixed in this fork
+
+Fixes below address bugs also reported against upstream `tsl0922/ttyd`. Listed
+for traceability; this is not a claim that upstream has adopted the same fix.
+Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
+
+| Fixed here | Upstream report |
+| --- | --- |
+| Plaintext WebSocket upgrades are rejected once `-S` is enabled, closing an mTLS bypass (`src/http.c`, `src/server.c`/`server.h`) | [#1550](https://github.com/tsl0922/ttyd/pull/1550) |
+| `lws_service()` is called in a loop until shutdown, fixing immediate exit against libwebsockets >=5.1, which runs one event-loop turn per call (`src/server.c`) | [#1589](https://github.com/tsl0922/ttyd/pull/1589) |
+| Empty WebSocket messages no longer dereference a null receive buffer; empty continuation frames preserve accumulated data | [#1546](https://github.com/tsl0922/ttyd/issues/1546) / [#1574](https://github.com/tsl0922/ttyd/pull/1574) |
+| WebSocket `permessage-deflate` is not registered against libwebsockets >=4.4.0 by default, avoiding a dropped connection (4.5.x) or silent data truncation (5.1.0) on large compressed messages such as browser pastes; see the open risk below | [#1532](https://github.com/tsl0922/ttyd/issues/1532) |
+
 ## Open risks and deliberately retained limits
 
 - Cross builds still use the 2021-11-23 musl/MinGW toolchain release, recorded as

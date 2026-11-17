@@ -121,19 +121,18 @@ see linked upstream issues/PRs for original reports.
   code here, so it wouldn't actually test anything).
   Matches [tsl0922/ttyd#1573](https://github.com/tsl0922/ttyd/pull/1573).
 
-## Correctness bugs
+- [x] **`--check-origin` rejected matching HTTP/2 origins.** Fixed
+  `check_host_origin()` to prefer `:authority` over `Host`, with the HTTP/2
+  token guarded for builds without HTTP/2. Also removed overlapping-buffer
+  formatting, initialized the parsed port, and restored brackets around IPv6
+  literal authorities. Preserved existing default-port spelling and public
+  Host matching when a reverse proxy terminates TLS; forwarded headers are
+  not trusted. Real RFC 8441 regression failed before the fix and passes
+  afterward, including terminal input/output and rejection of a forged Host
+  that conflicts with `:authority`. See `docs/history.md` for verification.
+  Matches [tsl0922/ttyd#1566](https://github.com/tsl0922/ttyd/issues/1566).
 
-- [ ] **`--check-origin` always fails over HTTP/2.** `check_host_origin()` in
-  `src/protocol.c` reads `WSI_TOKEN_HOST`, which HTTP/2 never populates (the
-  authority lives in `:authority`/`WSI_TOKEN_HTTP_COLON_AUTHORITY`). Every h2
-  handshake is refused and falls back to HTTP/1.1 after ttyd's 5s idle ping
-  policy closes the h2 connection — a visible per-connection delay, not a
-  lockout, but still gets the check consistently wrong over h2. Not
-  reproduced locally.
-  Matches [tsl0922/ttyd#1566](https://github.com/tsl0922/ttyd/issues/1566)
-  (also notes an uninitialized `port` for unrecognized `Origin` schemes, an
-  overlapping-buffer `snprintf`, and IPv6-literal origins that can never
-  match — same function, worth fixing together).
+## Correctness bugs
 
 - [ ] **Per-connection URL-argument array leak.** With `--url-arg` and at
   least one `arg=`, `pss->args` is heap-allocated in `src/protocol.c`, but

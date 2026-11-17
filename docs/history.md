@@ -493,3 +493,36 @@ libuv's documented `nread == 0` contract and the upstream PR's two
 independent production reproductions, not a fresh local repro. No regression
 test was added: it would have passed on both the fixed and unfixed code here,
 so it would not actually test anything.
+
+## Origin checking with HTTP/2 and TLS-terminating proxies (2026-11-17)
+
+Addressed [upstream #1566](https://github.com/tsl0922/ttyd/issues/1566) in
+`check_host_origin()`. The comparison now prefers HTTP/2 `:authority`, falling
+back to HTTP/1.1 Host only when the pseudo-header is absent. A conflicting Host
+cannot override `:authority`. The token reference is guarded by `LWS_ROLE_H2`
+for HTTP/1-only builds. Origin parsing uses separate source/destination buffers,
+initializes the port, rejects an unset port, checks formatting length, and puts
+brackets back around IPv6 literals.
+
+Preserved existing default-port spelling rather than introducing authority
+normalization. HTTPS Origin with a matching public Host is still accepted over
+plain HTTP from a TLS-terminating proxy. No trust was added for forwarded
+headers and no requirement was added for Origin's scheme to match the backend
+transport.
+
+Rebuilt pinned libwebsockets 4.5.8 with libuv and HTTP/2. The new real RFC 8441
+test failed against the pre-fix executable (no successful CONNECT response);
+after rebuilding ttyd it passed, delivering the PTY fixture's READY output and
+an input/echo round trip. A conflicting Host matching Origin cannot authorize
+a mismatched `:authority`. HTTP/1 tests passed for HTTPS-to-HTTP proxy-shaped
+headers, custom ports, case-insensitive hostnames, bracketed IPv6, and rejection
+of wrong authorities, null/unknown-scheme origins and forged forwarded headers.
+These exercise real sockets and PTYs, not the user's actual proxy deployment.
+The upstream five-second browser fallback explanation was not separately
+verified. A separate libwebsockets build with `LWS_WITH_HTTP2=OFF` and ttyd
+compilation also succeeded.
+
+Final verification: full browser/protocol suite 22 passed, 2 compression-dependent
+tests skipped; CLI documentation consistency passed. Against the HTTP/1-only
+build, origin coverage had 3 passed and the HTTP/2 test explicitly skipped.
+

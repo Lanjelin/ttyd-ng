@@ -93,6 +93,7 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
 | An unauthenticated client can no longer grow a fragmented WebSocket message's receive buffer without limit; a 10 MiB `MAX_MESSAGE_SIZE` cap closes the connection instead (`src/protocol.c`) | [#1544](https://github.com/tsl0922/ttyd/pull/1544) |
 | mTLS no longer rejects valid client certificates on OpenSSL >=4.1.0, by checking `preverify_ok` instead of a not-yet-updated `SSL_get_verify_result()` (`src/http.c`); reproduced against a from-source OpenSSL 4.1.0 build, see `docs/history.md` | [#1583](https://github.com/tsl0922/ttyd/issues/1583) / [#1584](https://github.com/tsl0922/ttyd/pull/1584) |
 | A pty is no longer left permanently unread (a terminal blank forever, closable only by restarting ttyd) after a spurious zero-byte read; the read is restarted and the allocated buffer freed instead of returning early (`src/pty.c`) | [#1573](https://github.com/tsl0922/ttyd/pull/1573) |
+| Origin checks prefer HTTP/2 `:authority` over `Host`, avoid overlapping formatting and handle bracketed IPv6. TLS-terminating proxies may still forward plain HTTP with the public Host; default-port spelling is unchanged and forwarded headers are not trusted. | [#1566](https://github.com/tsl0922/ttyd/issues/1566) |
 
 ## Open risks and deliberately retained limits
 

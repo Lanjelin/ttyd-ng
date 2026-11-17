@@ -52,23 +52,32 @@ static json_object *parse_window_size(const char *buf, size_t len, uint16_t *col
 }
 
 static bool check_host_origin(struct lws *wsi) {
-  char buf[256];
-  memset(buf, 0, sizeof(buf));
-  int len = lws_hdr_copy(wsi, buf, (int)sizeof(buf), WSI_TOKEN_ORIGIN);
+  char origin[256];
+  int len = lws_hdr_copy(wsi, origin, (int)sizeof(origin), WSI_TOKEN_ORIGIN);
   if (len <= 0) return false;
 
   const char *prot, *address, *path;
-  int port;
-  if (lws_parse_uri(buf, &prot, &address, &port, &path)) return false;
+  int port = 0;
+  if (lws_parse_uri(origin, &prot, &address, &port, &path) || port <= 0) return false;
+
+  // Keep parsed pointers separate from the formatted authority (lws parses in place).
+  char buf[256];
+  const bool ipv6 = strchr(address, ':') != NULL;
+  int n;
   if (port == 80 || port == 443) {
-    snprintf(buf, sizeof(buf), "%s", address);
+    n = snprintf(buf, sizeof(buf), ipv6 ? "[%s]" : "%s", address);
   } else {
-    snprintf(buf, sizeof(buf), "%s:%d", address, port);
+    n = snprintf(buf, sizeof(buf), ipv6 ? "[%s]:%d" : "%s:%d", address, port);
   }
+  if (n < 0 || (size_t)n >= sizeof(buf)) return false;
 
   char host_buf[256];
-  memset(host_buf, 0, sizeof(host_buf));
-  len = lws_hdr_copy(wsi, host_buf, (int)sizeof(host_buf), WSI_TOKEN_HOST);
+  len = 0;
+#if defined(LWS_ROLE_H2)
+  // Prefer :authority on HTTP/2, even if a conflicting Host header was supplied.
+  len = lws_hdr_copy(wsi, host_buf, (int)sizeof(host_buf), WSI_TOKEN_HTTP_COLON_AUTHORITY);
+#endif
+  if (len == 0) len = lws_hdr_copy(wsi, host_buf, (int)sizeof(host_buf), WSI_TOKEN_HOST);
 
   return len > 0 && strcasecmp(buf, host_buf) == 0;
 }

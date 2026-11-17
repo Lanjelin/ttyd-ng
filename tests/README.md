@@ -3,8 +3,8 @@
 These tests launch the real `ttyd` executable and exercise its embedded browser
 client, HTTP/WebSocket endpoints, and POSIX PTY. They do not use a mocked server
 or the webpack development server. Linux is the supported test host; Windows,
-macOS, other browsers, TLS deployments, clipboard permissions, SIXEL and file
-transfers require separate validation.
+macOS, other browsers, production TLS/proxy deployments, clipboard permissions,
+SIXEL and file transfers require separate validation.
 
 ## Run
 
@@ -60,6 +60,14 @@ and every payload arrives intact. Use it with a binary built with
   messages, and malformed-message service survival.
   Empty WebSocket frames are covered both as standalone messages and as initial,
   intermediate and final fragments of authenticated/session payloads.
+- Origin tests cover public Host/HTTPS Origin headers over a plain-HTTP backend,
+  custom ports, hostname case, bracketed IPv6, mismatches and untrusted forwarded
+  headers. They preserve the existing default-port spelling policy.
+- `protocol/origin-h2.spec.mjs` uses Node's HTTP/2 client and real RFC 8441
+  extended CONNECT streams over TLS, including terminal input/output and a
+  conflicting Host header. It needs the `openssl` executable to generate an
+  ephemeral test certificate. It explicitly skips when the selected binary does
+  not negotiate HTTP/2 or advertise extended CONNECT; HTTP/1 tests still run.
 - One test starts ttyd with a command ending in an option-like argument
   (`bash -i`, no `--` separator) and asserts both that the process stays up
   and that it logs the correct `start command:` line. This only exercises the

@@ -227,6 +227,44 @@ test('origin checking rejects a mismatch and accepts the exact loopback origin',
     await expect.poll(() => session.output).toContain('ECHO:matching-origin\r\n');
 });
 
+test('origin checking preserves public Host matching behind a TLS-terminating proxy', async ({ harness }) => {
+    const server = await harness.start({ args: ['-W', '-O'] });
+    for (const [host, origin] of [
+        ['terminal.example.com', 'https://terminal.example.com'],
+        ['terminal.example.com', 'http://terminal.example.com'],
+        ['TERMINAL.example.com', 'https://terminal.example.com'],
+        ['terminal.example.com:8443', 'https://terminal.example.com:8443'],
+        ['[::1]', 'https://[::1]'],
+        ['[::1]:8443', 'https://[::1]:8443'],
+    ]) {
+        // The backend transport is plain HTTP; Origin describes the public URL.
+        const session = harness.connect(server, { headers: { Host: host }, origin });
+        await ready(server, session);
+        await session.input('echo proxy-origin\n');
+        await expect.poll(() => session.output).toContain('ECHO:proxy-origin\r\n');
+        session.socket.terminate();
+    }
+});
+
+test('origin checking rejects proxy authority mismatches without trusting forwarded headers', async ({ harness }) => {
+    const server = await harness.start({ args: ['-W', '-O'] });
+    for (const [host, origin] of [
+        ['terminal.example.com', 'https://other.example.com'],
+        ['terminal.example.com:8443', 'https://terminal.example.com:9443'],
+        ['localhost:7681', 'https://terminal.example.com'],
+        ['terminal.example.com', 'null'],
+        ['terminal.example.com', 'file://terminal.example.com'],
+        // Preserve the existing default-port spelling policy; do not silently normalize Host.
+        ['terminal.example.com:443', 'https://terminal.example.com'],
+    ]) {
+        await rejectsUpgrade(harness.connect(server, {
+            headers: { Host: host, 'X-Forwarded-Host': 'terminal.example.com', 'X-Forwarded-Proto': 'https' },
+            origin,
+        }));
+    }
+    expect(await events(server)).toEqual([]);
+});
+
 test('a start command ending in an option-like argument is parsed as the command, not re-parsed by ttyd', async ({ harness }) => {
     // Regression for an argv-copy heap overflow (musl static binaries only:
     // calc_command_start() permuted one pointer past its copy's end and

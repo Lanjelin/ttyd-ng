@@ -526,3 +526,15 @@ Final verification: full browser/protocol suite 22 passed, 2 compression-depende
 tests skipped; CLI documentation consistency passed. Against the HTTP/1-only
 build, origin coverage had 3 passed and the HTTP/2 test explicitly skipped.
 
+
+## MSVC option-buffer compilation failure (2026-11-17)
+
+The 1.9.2 release build failed on MSVC because `calc_command_start()` sized
+`plus_opt_string` with `strlen()`, creating a variable-length array unsupported
+by MSVC. Declare `opt_string` as a character array and size the prefixed buffer
+with `sizeof(opt_string) + 1`, preserving the leading `+` and terminating NUL
+without changing option parsing.
+
+Local native configure/build passed with `-Werror=vla`; the existing
+option-like command-argument regression passed, and CLI documentation
+consistency passed. Windows/MSVC compilation still requires CI verification.

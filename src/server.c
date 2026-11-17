@@ -95,7 +95,7 @@ static const struct option options[] = {{"port", required_argument, NULL, 'p'},
                                         {"version", no_argument, NULL, 'v'},
                                         {"help", no_argument, NULL, 'h'},
                                         {NULL, 0, 0, 0}};
-static const char *opt_string = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vh";
+static const char opt_string[] = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vh";
 
 static void print_help() {
   // clang-format off
@@ -291,7 +291,7 @@ static int calc_command_start(int argc, char **argv) {
   opterr = 0;
   // leading '+' disables permutation: stop at the command instead of scanning
   // past it for more options, which would misparse an option-like command arg
-  char plus_opt_string[strlen(opt_string) + 2];
+  char plus_opt_string[sizeof(opt_string) + 1];
   snprintf(plus_opt_string, sizeof(plus_opt_string), "+%s", opt_string);
   while (getopt_long(argc_copy, argv_copy, plus_opt_string, options, NULL) != -1)
     ;

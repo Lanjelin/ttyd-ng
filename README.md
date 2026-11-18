@@ -188,6 +188,25 @@ CORS, HTTPS/mixed-content rules, and CSP. See the
 [font reference](man/ttyd.man.md#custom-font) for formats, preference precedence,
 fallback, and weight/style limits.
 
+## Mobile installed app
+
+Install ttyd-ng on your phone or tablet for an app-style terminal with mobile
+controls. Serve it over HTTPS, then choose **Share → Add to Home Screen** on
+iPhone/iPad, or **Install app / Add to Home screen** in other mobile browsers.
+
+The installed mobile app includes:
+
+- **Extra keys:** Escape, Tab, Ctrl, Alt and arrows, shown above the keyboard
+  while it is open. Ctrl/Alt apply to the next character.
+- **Paste:** paste clipboard text directly into the terminal.
+- **Select and copy:** tap Select beside Paste, tap the first and last text
+  positions, then Copy.
+- **Text sizing:** tap Aa for smaller/larger terminal text. Your choice is
+  remembered for that terminal.
+
+The extra controls appear only in the installed mobile app.
+
+
 ## Browser Support
 
 Modern browsers are supported; see the

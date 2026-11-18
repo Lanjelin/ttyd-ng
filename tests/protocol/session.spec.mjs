@@ -423,7 +423,13 @@ test('an oversized fragmented message is rejected instead of growing the receive
     chunk[0] = '{'.charCodeAt(0);
     await session.send(chunk, { binary: true, fin: false });
     // Second fragment pushes the cumulative size past the 10 MiB cap.
-    await session.send(Buffer.alloc(6 * 1024 * 1024, 0x61), { binary: true, fin: false });
+    try {
+        await session.send(Buffer.alloc(6 * 1024 * 1024, 0x61), { binary: true, fin: false });
+    } catch (error) {
+        // The server may reject the message before this fragment finishes
+        // writing. A successful send callback is not part of the contract.
+        expect(['EPIPE', 'ECONNRESET']).toContain(error.code);
+    }
     await expect.poll(() => session.close !== null || session.socket.readyState === WebSocket.CLOSED).toBe(true);
     expect(await events(server)).toEqual([]);
     expect(server.process.exitCode, server.logs()).toBeNull();

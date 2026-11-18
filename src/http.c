@@ -12,6 +12,19 @@ enum { AUTH_OK, AUTH_FAIL, AUTH_ERROR };
 static char *html_cache = NULL;
 static size_t html_cache_len = 0;
 
+// All metadata URLs are relative to endpoints.index, including behind a proxy.
+static const struct {
+  const char *path;
+  const unsigned char *data;
+  size_t len;
+  const char *content_type;
+} pwa_assets[] = {
+    {"manifest.webmanifest", pwa_manifest, sizeof(pwa_manifest), "application/manifest+json"},
+    {"icon-192.png", pwa_icon_192, sizeof(pwa_icon_192), "image/png"},
+    {"icon-512.png", pwa_icon_512, sizeof(pwa_icon_512), "image/png"},
+    {"apple-touch-icon.png", pwa_apple_icon, sizeof(pwa_apple_icon), "image/png"},
+};
+
 static int send_unauthorized(struct lws *wsi, unsigned int code, enum lws_token_indexes header) {
   unsigned char buffer[1024 + LWS_PRE], *p, *end;
   p = buffer + LWS_PRE;
@@ -19,6 +32,7 @@ static int send_unauthorized(struct lws *wsi, unsigned int code, enum lws_token_
 
   if (lws_add_http_header_status(wsi, code, &p, end) ||
       lws_add_http_header_by_token(wsi, header, (unsigned char *)"Basic realm=\"ttyd\"", 18, &p, end) ||
+      lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (unsigned char *)"no-store", 8, &p, end) ||
       lws_add_http_header_content_length(wsi, 0, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
       lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
     return AUTH_FAIL;
@@ -81,7 +95,11 @@ static bool uncompress_html(char **output, size_t *output_len) {
 }
 
 static void pss_buffer_free(struct pss_http *pss) {
-  if (pss->buffer != (char *)index_html && pss->buffer != html_cache) free(pss->buffer);
+  if (pss->buffer == (char *)index_html || pss->buffer == html_cache) return;
+  for (size_t i = 0; i < sizeof(pwa_assets) / sizeof(pwa_assets[0]); i++) {
+    if (pss->buffer == (char *)pwa_assets[i].data) return;
+  }
+  free(pss->buffer);
 }
 
 static void access_log(struct lws *wsi, const char *path) {
@@ -135,6 +153,7 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
         if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE,
                                          (unsigned char *)"application/json;charset=utf-8", 30, &p, end) ||
+            lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (unsigned char *)"no-store", 8, &p, end) ||
             lws_add_http_header_content_length(wsi, (unsigned long)pss->len, &p, end) ||
             lws_finalize_http_header(wsi, &p, end) ||
             lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0) {
@@ -160,6 +179,28 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
             lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
           return 1;
         goto try_to_reuse;
+      }
+
+      size_t index_len = strlen(endpoints.index);
+      if (strncmp(pss->path, endpoints.index, index_len) == 0) {
+        const char *asset_path = pss->path + index_len;
+        for (size_t i = 0; i < sizeof(pwa_assets) / sizeof(pwa_assets[0]); i++) {
+          if (strcmp(asset_path, pwa_assets[i].path) != 0) continue;
+          pss->buffer = pss->ptr = (char *)pwa_assets[i].data;
+          pss->len = pwa_assets[i].len;
+          if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
+              lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE,
+                                           (const unsigned char *)pwa_assets[i].content_type,
+                                           (int)strlen(pwa_assets[i].content_type), &p, end) ||
+              lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (unsigned char *)"no-store", 8, &p,
+                                           end) ||
+              lws_add_http_header_content_length(wsi, (unsigned long)pss->len, &p, end) ||
+              lws_finalize_http_header(wsi, &p, end) ||
+              lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
+            return 1;
+          lws_callback_on_writable(wsi);
+          return 0;
+        }
       }
 
       if (strcmp(pss->path, endpoints.index) != 0) {

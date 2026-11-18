@@ -24,6 +24,7 @@ No distribution or Homebrew package recipes are maintained in this repository.
 | --- | --- |
 | Frontend tooling | Node >=24, pinned Yarn 4.18.1 and immutable installs; webpack with Node-based asset generation and flat ESLint configuration |
 | Browser terminal | xterm 6 compatible addons; WebGL with DOM fallback; canvas renderer removed |
+| Mobile client | Authenticated, base-path-aware install manifest/icons; installed-mobile-only accessory keys, bounded per-path terminal text sizing and dismissible browser installation guidance; no service worker/offline cache |
 | Native build | CMake >=3.12, policies through 4.0, C99; exported libwebsockets targets and custom-prefix support |
 | Cross dependencies | zlib 1.3.2 from the official GitHub release asset, json-c 0.19, libuv 1.53.0, OpenSSL 3.5.9 LTS, libwebsockets 4.5.8 |
 | Cross isolation | Target-only pkg-config metadata, including staged `lib64`; dependency roots retain their existing meanings |
@@ -96,6 +97,35 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
 | Origin checks prefer HTTP/2 `:authority` over `Host`, avoid overlapping formatting and handle bracketed IPv6. TLS-terminating proxies may still forward plain HTTP with the public Host; default-port spelling is unchanged and forwarded headers are not trusted. | [#1566](https://github.com/tsl0922/ttyd/issues/1566) |
 
 ## Open risks and deliberately retained limits
+
+- User testing reports reliable iPhone PWA controls, selection/copy (including
+  tmux → Vim) and rotation. Remaining physical-device release checks include
+  iPad floating/split and hardware keyboards, IME, and Android Chrome. Safari lacks the
+  VirtualKeyboard API; the mobile PWA row follows inferred keyboard visibility
+  in every connection state. Disconnected buttons are disabled. Native page zoom
+  guards preserve container geometry and defer PTY fitting; viewport inference
+  normalizes scale and the hidden input uses 16px text. Device testing still
+  reports pinch zoom snapping back: unresolved and deferred during keyboard work.
+  Standalone installation does not grant native keyboard-accessory APIs or
+  guarantee background WebSocket survival. The native iOS form-assistant strip
+  cannot be suppressed from a browser/PWA; its dismiss control remains.
+- The Paste key requires browser clipboard permission and a secure context.
+  Native permission/paste UI may temporarily dismiss the keyboard; the web app
+  cannot suppress it. User testing reports the revised iPhone controls working
+  reliably; native permission UI and denied-access fallback need separate checks.
+- Installed-mobile selection uses an explicit Select text / two-cell-tap / Copy
+  flow, not automatic copying or OSC 52. The independent selection panel remains
+  available after keyboard dismissal; viewport resize resets its range without
+  closing it. Failed clipboard and legacy-copy APIs expose a native read-only
+  Selected text field for manual copying or retry. The user reports reliable
+  iPhone copying after refreshing the PWA, including tmux → Vim.
+  Copy/Close reuse accessory focus-preserving activation and successful copy
+  closes selection. iPad/Android, native manual-copy fallback and permission UI
+  remain unverified; desktop emulation does not certify those paths.
+- Browser/OS installation fetches may not preserve Basic/proxy authentication.
+  Manifest/icons remain authenticated; install flows must be validated against
+  the actual HTTPS proxy and base path. Launch URLs intentionally omit query
+  arguments/fragments. Custom indexes do not gain UI integration automatically.
 
 - Cross builds still use the 2021-11-23 musl/MinGW toolchain release, recorded as
   upstream's latest published release at audit time. Downloads lack a checked-in

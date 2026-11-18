@@ -538,3 +538,296 @@ without changing option parsing.
 Local native configure/build passed with `-Werror=vla`; the existing
 option-like command-argument regression passed, and CLI documentation
 consistency passed. Windows/MSVC compilation still requires CI verification.
+
+## Mobile PWA and installed-only accessory keys (2026-11-18)
+
+Added a relative install manifest, deterministic 192/512px PNG icons and a
+180px Apple touch icon to the embedded frontend. Native routes retain HTTP
+authentication and base-path boundaries; metadata/icons and token responses use
+no-store. There is no service worker or offline cache. Manifest identity, scope
+and launch URL omit query arguments and fragments.
+
+Regular secure mobile browsers offer optional install guidance or an explicit
+browser install prompt. Dismissal is scoped to the terminal path: sessionStorage
+for Not now and localStorage for persistent dismissal, with blocked-storage
+fallback. Installed mobile clients alone get the accessory row. It uses public
+xterm input/mode APIs for Escape, Tab, one-shot Ctrl/Alt and repeating arrows,
+fits the terminal to the visual viewport and has a Keys/Auto override for
+floating keyboards. Listeners/timers and armed modifiers are cleared on their
+respective disposal, focus and connection boundaries.
+
+Pinned immutable frontend installation, type/lint checks, production asset
+generation, native configure and compilation passed. The first 52-case suite
+run had 44 passes, 2 compression-dependent skips and 6 failures. Corrected a
+toolbar stacking bug (xterm's canvas intercepted the manual override), replaced
+Fetch in PWA HTTP tests so actual 407 proxy-auth responses could be inspected,
+and allowed expected EPIPE/ECONNRESET on an oversized fragment while still
+requiring session rejection and fresh authenticated service recovery.
+
+Focused reruns passed all 13 keyboard/asset cases and the oversized-message
+case. After strengthening the mobile read-only resize barrier and removing a
+log-wording assertion, the two rejection cases passed again. All 28 new PWA
+cases passed across these runs; no single all-green full-suite rerun is claimed.
+Coverage includes real PTY bytes, application cursor mode, single-character
+paste, committed Unicode text, viewport fitting/dismissal, root/nested paths,
+Basic/proxy authentication, decoded PNGs and install-hint state transitions.
+
+Opened the rebuilt native UI in Chromium mobile emulation: the install flyout
+and DOM-rendered accessory layout were visually inspected, and the Ctrl key
+interrupted a real shell's sleep command. Chromium reported no manifest or
+installability errors. Mobile-emulated WebGL rendering was blank in both this
+build and the pre-feature `build/origin-noh2/ttyd` baseline; this does not prove a
+PWA regression or establish its cause. Visual output inspection used DOM
+fallback instead.
+
+Standalone-display and install-prompt signals in automated coverage are
+simulated. Actual installation, iOS keyboard animations/IME, floating or split
+keyboards, physical keyboard transitions, authenticated OS installation fetches
+and the deployment's HTTPS proxy were not exercised. Those remain explicit
+physical-device release gates, not verified behavior. Windows, cross-target
+builds, containers, sixel and file transfers were not exercised for this change.
+
+Built the PWA checkout as `build/cross/x86_64/ttyd` using the existing musl
+toolchain/stage: zlib 1.3.2, json-c 0.19, libuv 1.53.0, OpenSSL 3.5.9 and
+libwebsockets 4.5.8. `file` reports a stripped, statically linked x86-64 ELF.
+Version/help consistency and three focused tests passed against this artifact:
+root/nested PWA metadata with decoded icons and musl command-argument parsing.
+These checks ran on the Linux build host, not Alpine; Alpine and physical-device
+testing remain external validation. The executable includes uncommitted PWA
+sources despite reporting the base commit version `1.9.2-9777848`.
+
+### Accessory touch focus, Paste and key symbols
+
+The user reported that the Alpine artifact works, but accessory taps sometimes
+close the native keyboard. Added non-passive touchstart/touchend default
+cancellation alongside pointer/mouse handling, with synchronous textarea focus
+restoration inside the control gesture. This addresses the touch-focus path;
+the physical-device symptom has not yet been retested against the revision.
+
+Added an explicit Paste key using the browser clipboard API on pointer release
+or accessibility activation. It clears armed modifiers and uses xterm's paste
+API, preserving bracketed-paste mode and input gating. Permission failures show
+dismissible manual-paste guidance; pending results cannot enter a different
+connection after reconnect. Browser-owned clipboard permission UI may still
+temporarily dismiss the keyboard.
+
+Replaced key words/line arrows with conventional ShellFish-style Tab, Control,
+Option and filled-arrow symbols, keeping accessible names. The clipboard SVG is
+original artwork rather than a redistributed native icon asset. Nine keys
+remain on one row with 44px height and reduced gaps.
+
+Frontend type/lint checks and production generation passed; native and cached
+static-musl x86-64 builds passed. All nine accessory tests passed against the
+static artifact in Chromium mobile emulation, including real clipboard reads,
+literal input, bracketed paste, denied-access recovery, reconnect isolation and
+read-only behavior. Failure/delay clipboard responses were simulated; permission
+dialogs and iOS native keyboard visibility were not. Visually inspected the
+updated row against the static executable using DOM rendering. The revised
+binary and checksum are in `build/cross/x86_64/`; no release was published.
+
+### Compact persistent row and native iOS strip limitation
+
+The user reported substantially improved touch behavior, requested the standard
+Escape symbol and smaller keys, and asked for the row to remain visible throughout
+mobile PWA use. Escape now uses `⎋`; key height is 40px (previously 44px), with
+16px symbols and an 18px clipboard outline. Removed the Keys/Auto button and its
+forced-visibility state. The row remains visible through viewport changes, input
+blur and disconnect; disconnected controls are disabled. Viewport inference now
+only handles safe-area padding and modifier cleanup on keyboard dismissal.
+
+The previous/next/dismiss strip is native iOS UI, not a webpage element.
+[Ionic's platform guidance](https://ionicframework.com/docs/developing/keyboard#hiding-the-accessory-bar)
+explicitly states that browser/PWA apps cannot hide it; native wrappers can.
+[W3C editing issue #545](https://github.com/w3c/editing/issues/545) tracks a
+requested browser opt-out and was still open when checked. No unsupported
+input/focus workaround or redundant hide-keyboard key was added; the native
+dismiss control remains available.
+
+Frontend checks/build, native and static-musl x86-64 builds passed. All nine
+accessory cases passed against the refreshed static artifact, including persistent
+visibility after dismissal/blur, disabled controls during disconnect, clipboard
+framing and reconnect isolation. Inspected the compact row and working Escape
+control in Chromium mobile emulation with DOM rendering. Actual iOS native-strip
+behavior and the revised layout still require device validation. Refreshed
+`build/cross/x86_64/ttyd` and its adjacent checksum; nothing was published.
+
+### Automatic disconnected controls and zoom persistence
+
+The user requested automatic visibility only for disconnected controls and
+reported that pinch magnification did not persist. Connected rows still remain
+present; disconnected rows are disabled and shown only when keyboard occlusion
+is inferred from the viewport. Keyboard inference normalizes visual height by
+page scale to avoid mistaking magnification for an open keyboard.
+
+The PWA controller previously resized its container to every visual viewport
+change, including native zoom. It now preserves container geometry while zoomed.
+All fitting paths in the terminal wrapper share a zoom-aware guard, and visual
+viewport resize events resume normal fitting after zoom-out. A 16px font on the
+hidden input avoids Safari's small-input focus auto-zoom without changing the
+rendered terminal font. Native page zoom magnifies/pans the whole page rather
+than changing the PTY grid; this is not terminal-only font resizing.
+
+Frontend type/lint and production generation, native and static-musl x86-64
+builds passed. The 19-case accessory/desktop browser run had 17 passes and two
+test failures: the viewport test typed before the queued modifier reset, and
+Chromium's synthetic touch-pinch command did not change page scale here. The
+former now waits for observable modifier cleanup; the latter uses Chromium's
+real page-scale API instead of claiming physical gesture coverage. Both focused
+cases then passed. No all-green single 19-case rerun is claimed.
+
+Verified native browser scaling remains above 1x while typing, preserves terminal
+dimensions, and normal fitting/PTY resize resumes after zoom-out. Disconnected
+visibility, clipboard safety, read-only mode, desktop resize/authentication and
+renderer fallback passed across those runs. Visually inspected 2x page scaling
+with DOM rendering: the terminal stayed at 46 columns and 52 rows. Actual iOS
+pinch recognition and keyboard behavior remain device-test requirements.
+Refreshed the Alpine-compatible binary and adjacent checksum.
+
+### Keyboard-only visibility in all connection states
+
+The user clarified the intended behavior: keyboard hidden means keys hidden;
+keyboard visible means keys visible, regardless of connection state. Removed
+the connected-session visibility exception and initialize the row hidden to
+avoid an initial flash before viewport detection. Disconnected controls remain
+disabled. There is no manual visibility toggle.
+
+The user also confirmed that native pinch zoom still snaps back. That symptom
+is unresolved. Per the user's request, no zoom behavior was changed or tested
+in this correction; the existing browser-scale checks do not establish working
+native pinch gestures.
+
+Frontend checks/build and native/static-musl builds passed. Eight keyboard cases
+passed in the selected run; the read-only case's resize barrier reused the new
+500px keyboard-open viewport and therefore produced no resize. Changing its
+barrier to 460px retained a real ordered resize, and that focused case passed.
+Connected and disconnected show/hide transitions, focus retention, literal and
+bracketed paste, stale-read isolation and read-only enforcement passed across
+those runs. Zoom coverage was explicitly excluded from this keyboard-only run,
+not disabled in the suite. Inspected the initially hidden row and observed
+viewport-driven show/hide transitions in the rebuilt UI under mobile emulation;
+actual native keyboard behavior still needs the user's device retest.
+
+Refreshed `build/cross/x86_64/ttyd` and its adjacent checksum. No commit, push or
+release was made.
+
+### Right-end terminal text-size controls
+
+Added an Aa button at the right end of the mobile PWA key row, opening a compact
+minus/current-size/plus panel. It changes xterm's font size in 1px steps within
+8–32px and refits through the existing fit path, notifying the real PTY without
+sending input or scaling the key row. Taps retain textarea focus. Aa, outside
+taps, keyboard dismissal and disconnect close the panel.
+
+Sizes chosen through the panel persist in localStorage scoped to the terminal
+path. Restore occurs after server/URL preferences on load/reconnect, so a saved
+mobile choice overrides configured fontSize. Invalid/out-of-range stored values
+are ignored. Storage denial still permits sizing and retains the in-page choice.
+Desktop and ordinary mobile browser behavior are unchanged. No dependencies,
+CLI options, server protocol changes or native pinch-zoom fixes were added.
+
+Frontend type/lint and production generation, native and static-musl builds
+passed. All 13 selected keyboard/text-size cases passed against the static
+artifact in one run, including PTY dimensions, unchanged row height and browser
+scale, retained focus, persistence after server preferences, 8/32px limits and
+blocked storage. Existing clipboard/read-only/reconnect cases also passed.
+Zoom coverage remained excluded; the reported native pinch issue is unresolved.
+
+Visually inspected the right-end button and open size panel under Chromium mobile
+emulation using native touch dispatch and DOM rendering. Increasing text size
+retained input focus and page scale 1. Keyboard presence was emulated by viewport
+occlusion; actual iPhone/iPad keyboard behavior still needs device verification.
+Regenerated src/html.h and refreshed build/cross/x86_64/ttyd plus its checksum.
+No commit, push or release was made.
+
+### Arrow order and removal of the application paste warning
+
+Reordered the four arrows to Left, Right, Up, Down. The real-PTY regression now
+taps them in displayed order and checks the resulting direction sequences.
+
+The user confirmed that the Paste button works but long-press pasting does not,
+and requested removal of the "Paste unavailable" popup. Removed the popup DOM,
+dismiss control, lifecycle state and CSS, along with the misleading manual-paste
+advice. Clipboard reads and xterm paste handling are unchanged when access
+succeeds; a canceled/unavailable read returns without application feedback and
+re-enables the button. Browser-owned clipboard permission UI is not suppressed.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 13 selected keyboard/text-size cases passed against the refreshed static
+binary, including displayed arrow order at the PTY, successful literal/bracketed
+paste, denied-access continued typing without a popup, reconnect safety and
+font sizing. Visually inspected the reordered row in Chromium mobile emulation
+with DOM rendering. Native pinch zoom and touch selection remain deferred.
+Updated build/cross/x86_64/ttyd and its checksum; no commit, push or release.
+
+### Explicit mobile selection and copy
+
+Added mobile-PWA-only Select text directly after Paste in an 11-control row:
+14px labels, 16px icons and unchanged 40px button height, including narrow 320px
+layouts. The independent Terminal selection panel prompts for the first and last
+cell; two taps select an inclusive range in either direction through xterm's
+public selection API, without synthetic mouse events or PTY input.
+
+Selection requires explicit Copy, never automatic copying or OSC 52. Clipboard
+write falls back to legacy copying, then a native read-only Selected text field
+with manual-selection and Copy-retry access. Only API-reported success displays
+Copied. The panel remains accessible after the keyboard hides the toolbar.
+Viewport resize clears its range/start anchor; Done restores terminal focus and
+clears selection, while disconnect, blur and document hiding close the panel.
+Read-only terminals retain Select/Copy without weakening input enforcement. Desktop
+selection and ordinary mobile-browser-tab behavior are unchanged.
+
+Focused regression scenarios were added for real permission-granted clipboard
+copy, denied clipboard/legacy-copy fallback with exact reverse-multiline text,
+retry, application mouse-reporting isolation, ordered PTY input barriers,
+keyboard-hidden panel access, resize/cleanup, read-only behavior and narrow row
+  bounds. Frontend checks/production generation and native/static-musl builds
+  passed. The first selected run passed 19/22 cases; three new assertions
+  incorrectly assumed server read-only disables frontend keys, or resized an
+  already fixed-width mobile page into browser page scaling. Corrected those
+  test assumptions without changing application behavior. The five-case
+  correction run passed, including real legacy clipboard copying with the
+  modern API unavailable and real clipboard retry after simulated denial.
+  The retained keyboard/selection scenarios passed across these runs; the
+  known-unresolved native pinch path was excluded.
+
+Visually inspected the one-row controls and highlighted two-tap selection with
+Copy/Done in Chromium mobile emulation using DOM rendering. Updated
+`build/cross/x86_64/ttyd` and its checksum. Physical iOS selection, native
+manual-copy fallback and keyboard behavior remain unverified. The reported
+native pinch snap-back remains unresolved, and denied Paste still has no
+application popup or long-press advice. Nothing committed, pushed or released.
+
+### Preserve keyboard focus and dismiss selection after copy
+
+Following a device report that Copy dismisses the keyboard, selection no longer
+explicitly blurs xterm. Copy and the renamed Close control reuse the accessory
+keys' focus-preserving touch/pointer activation, invoking clipboard access on
+release. Successful modern or legacy copying clears selection and closes its
+panel; failure retains the native manual-copy fallback and retry.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 22 selected keyboard/selection cases passed, including no input-textarea
+blur through modern Copy, automatic dismissal, real clipboard contents,
+legacy copying, denied-copy retry and Close cancellation. The unresolved
+browser-zoom case was excluded. Chromium mobile-emulation UI inspection showed
+Copy/Close, retained input focus, matching clipboard text and a hidden panel
+after Copy. Physical iOS keyboard/permission behavior still needs retesting.
+Refreshed `build/cross/x86_64/ttyd` and its checksum. No commit, push or release.
+
+### Vim copy investigation
+
+A local real Vim 9.2 session using the alternate screen and mouse reporting
+copied the selected text to Chromium's clipboard through the PWA controls,
+closed the selection panel and retained terminal focus. No source fix was made.
+The user subsequently reported that copying worked after refreshing the PWA,
+including tmux → Vim, and planned further device testing. The cause of the
+earlier stale clipboard was not established.
+
+### User-reported iPhone stability
+
+The user subsequently reported reliable PWA behavior, including selection/copy
+and tmux → Vim, and confirmed rotation works on iPhone. Updated current
+documentation to distinguish that device evidence from unverified iPad/Android,
+native permission/manual-copy fallback and other release-checklist scenarios.
+Pinch zoom snapping back remains unresolved; Aa text sizing is the alternative.
+This documentation update adds no new automated or physical-device test run.

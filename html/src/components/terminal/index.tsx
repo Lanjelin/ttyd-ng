@@ -3,6 +3,7 @@ import { Xterm, XtermOptions } from './xterm';
 
 import '@xterm/xterm/css/xterm.css';
 import { Modal } from '../modal';
+import { MobileInstallHint } from './mobile-install';
 
 interface Props extends XtermOptions {
     id: string;
@@ -33,7 +34,9 @@ export class Terminal extends Component<Props, State> {
 
     render({ id }: Props, { modal }: State) {
         return (
-            <div id={id} ref={c => { this.container = c as HTMLElement; }}>
+            <div id={id}>
+                <div class="terminal-host" ref={c => { this.container = c as HTMLElement; }} />
+                <MobileInstallHint />
                 <Modal show={modal}>
                     <label class="file-label">
                         <input onChange={this.sendFile} class="file-input" type="file" multiple />

@@ -1,0 +1,57 @@
+.mobile-install {
+  position: fixed;
+  z-index: 30;
+  top: max(.5rem, env(safe-area-inset-top));
+  right: max(.5rem, env(safe-area-inset-right));
+  left: max(.5rem, env(safe-area-inset-left));
+  box-sizing: border-box;
+  max-width: 26rem;
+  max-height: calc(50dvh - 1rem);
+  margin-left: auto;
+  overflow: auto;
+  padding: .75rem;
+  border: 1px solid currentColor;
+  border-radius: .5rem;
+  background: var(--terminal-background, #2b2b2b);
+  color: var(--terminal-foreground, #f2f2f2);
+  box-shadow: 0 .25rem 1rem #0006;
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+
+  p {
+    margin: .5rem 0;
+  }
+
+  button {
+    min-height: 44px;
+    padding: .5rem .65rem;
+    border: 1px solid currentColor;
+    border-radius: .25rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+
+    &:active {
+      background: #8883;
+    }
+
+    &:disabled {
+      cursor: wait;
+      opacity: .65;
+    }
+  }
+}
+
+.mobile-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .5rem;
+}

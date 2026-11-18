@@ -5,6 +5,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
+const terminalIcon = require('./pwa-icons');
 
 const devMode = process.env.NODE_ENV !== 'production';
 
@@ -40,7 +41,15 @@ const baseConfig = {
     },
     plugins: [
         new CopyWebpackPlugin({
-            patterns: [{ from: './favicon.png', to: '.' }],
+            patterns: [
+                { from: './favicon.png', to: '.' },
+                { from: './manifest.webmanifest', to: '.' },
+                ...[192, 512, 180].map(size => ({
+                    from: '../pwa-icons.js',
+                    to: size === 180 ? 'apple-touch-icon.png' : `icon-${size}.png`,
+                    transform: () => terminalIcon(size),
+                })),
+            ],
         }),
         new MiniCssExtractPlugin({
             filename: devMode ? '[name].css' : '[name].[contenthash].css',
@@ -52,7 +61,7 @@ const baseConfig = {
                 removeComments: true,
                 collapseWhitespace: true,
             },
-            title: 'ttyd - Terminal',
+            title: 'ttyd-ng - Terminal',
             template: './template.html',
         }),
     ],

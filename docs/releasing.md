@@ -29,6 +29,22 @@ replace validation of the commit being released.
   not verify these integrations. When font behavior changes, validate loading,
   authentication/base paths, fallback, reconnect and terminal measurements;
   account for browser-side remote font restrictions.
+- For mobile PWA changes, test actual installation through the deployment's HTTPS
+  proxy and authentication at root and non-root paths. On iPhone/iPad Safari and
+  Android Chrome, check keyboard open/dismiss, rotation, viewport panning, hardware
+  keyboards and iPad floating/split keyboards. In every connection state, the row
+  must hide when the keyboard is hidden and appear when the keyboard is visible;
+  disconnected controls must be disabled.
+  Check pinch zoom/panning, input while zoomed and normal fitting after zoom-out;
+  zoom must not silently reflow the PTY or reset itself.
+  Verify Ctrl/Alt, held-arrow release/cancel, vim/tmux cursor modes, paste, IME,
+  reconnect and read-only mode. Confirm no row in browser tabs or on desktop,
+  prompt dismissal survives reload, and the installed launch does not retain
+  query secrets. Desktop mobile emulation cannot satisfy this release gate.
+  Exercise the right-end Aa controls: terminal font and PTY dimensions change,
+  key sizes and keyboard focus do not. Check 8/32px bounds, saved-size restoration
+  after reload/reconnect, blocked storage, and panel dismissal when the keyboard
+  closes. This is terminal text sizing, not a fix for native pinch zoom.
 - Run the full cross-build matrix, particularly 32-bit, Windows and s390x, and
   validate MSVC in its actual Windows environment. For a musl target (e.g.
   `build/cross/x86_64/ttyd`), also run the command-parsing regression test

@@ -188,6 +188,57 @@ CORS, HTTPS/mixed-content rules, and CSP. See the
 [font reference](man/ttyd.man.md#custom-font) for formats, preference precedence,
 fallback, and weight/style limits.
 
+## Mobile installed app
+
+Serve the bundled client over HTTPS (a TLS-terminating reverse proxy is fine),
+then install it from your mobile browser. On iPhone/iPad, use **Share → Add to
+Home Screen**, enabling **Open as Web App** if offered. Other supported browsers
+offer **Install app** or **Add to Home screen**.
+
+- Installed mobile/tablet windows show extra keys only while the keyboard is
+  visible, whether connected or disconnected. Keys are 40px high. Symbols are
+  `⎋` (Escape), `⇥` (Tab), `⌃` (Ctrl) and `⌥` (Alt), with filled arrows and an
+  original clipboard outline.
+  Ctrl/Alt apply to the next supported character; tap again to cancel.
+  Hold an arrow to repeat. Arrow order: Left, Right, Up, Down.
+  Cmd is not a standard terminal modifier.
+- Tap **Aa** at the right end of the row for **− / +** text-size controls
+  (8–32px, 1px steps). This changes terminal text and refits the PTY, not browser
+  zoom or key sizes. Tap Aa again or outside the panel to close it; hiding the
+  keyboard also closes it. The chosen size is remembered per terminal path
+  when local storage is available, overriding configured `fontSize` in the
+  mobile PWA. Desktop/browser-tab preferences are unchanged.
+- Paste reads the clipboard only when tapped, through the browser's clipboard
+  API. It requires a secure context and browser permission; a native permission
+  or paste popup may temporarily dismiss the keyboard. Canceled or unavailable
+  clipboard access does not show an application warning or long-press advice.
+  Bracketed paste and read-only enforcement remain intact; a pending clipboard
+  result is discarded if the session changes.
+- Keyboard visibility is inferred from viewport geometry. Keyboard hidden means
+  the row is hidden; keyboard visible means the row is shown. Disconnected
+  controls are disabled. There is no Keys/Auto toggle. Desktop windows and
+  ordinary mobile browser tabs have no row.
+- Device testing still reports pinch zoom snapping back. This remains unresolved;
+  browser page-scale tests are not proof of working native pinch gestures.
+- iOS's native previous/next/dismiss strip cannot be hidden by a browser or PWA;
+  its keyboard-dismiss control remains available. Removing it requires a native
+  wrapper, not a CSS or input-mode workaround.
+- A mobile browser can show optional installation guidance. **Not now** hides it
+  for the tab session; **Don't show again** remembers dismissal across visits
+  for that terminal path. Browser storage restrictions may prevent persistence.
+- Installation does not enable writing: `-W` is still required. It adds no
+  offline mode, authentication bypass or guarantee of background connectivity.
+  Use a server-side multiplexer such as tmux when session persistence matters.
+
+The installed launch URL deliberately excludes query parameters and fragments.
+URL-supplied command arguments and client settings are not saved into the app.
+Keep the terminal's public base path stable and forward its manifest/icon
+requests through the same authenticated HTTPS proxy. Browser/OS installation
+and credential handling vary; installation behind authentication must be tested
+in the target browser. Custom index pages must provide their own integration.
+Physical iPhone/iPad and Android keyboard behavior remains a release-validation
+requirement; desktop mobile emulation is not sufficient.
+
 ## Browser Support
 
 Modern browsers are supported; see the

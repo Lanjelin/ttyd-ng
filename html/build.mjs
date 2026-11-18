@@ -19,19 +19,27 @@ const html = asset('index.html')
 
 writeFileSync(new URL('inline.html', dist), html);
 
+function embed(name, contents) {
+    const lines = [];
+    for (let offset = 0; offset < contents.length; offset += 12) {
+        lines.push(
+            '  ' + Array.from(contents.subarray(offset, offset + 12), value => `0x${value.toString(16).padStart(2, '0')}`).join(', ')
+        );
+    }
+    return `static const unsigned char ${name}[] = {\n${lines.join(',\n')}\n};`;
+}
+
 if (!process.argv.includes('--inline')) {
     const contents = Buffer.from(html);
     const compressed = gzipSync(contents);
-    const lines = [];
-    for (let offset = 0; offset < compressed.length; offset += 12) {
-        lines.push(
-            '  ' + Array.from(compressed.subarray(offset, offset + 12), value => `0x${value.toString(16).padStart(2, '0')}`).join(', ')
-        );
-    }
     const header = [
-        `unsigned char index_html[] = {\n${lines.join(',\n')}\n};`,
-        `unsigned int index_html_len = ${compressed.length};`,
-        `unsigned int index_html_size = ${contents.length};`,
+        embed('index_html', compressed),
+        `static const unsigned int index_html_len = ${compressed.length};`,
+        `static const unsigned int index_html_size = ${contents.length};`,
+        embed('pwa_manifest', asset('manifest.webmanifest')),
+        embed('pwa_icon_192', asset('icon-192.png')),
+        embed('pwa_icon_512', asset('icon-512.png')),
+        embed('pwa_apple_icon', asset('apple-touch-icon.png')),
         '',
     ].join('\n');
     writeFileSync(new URL('../src/html.h', import.meta.url), header);

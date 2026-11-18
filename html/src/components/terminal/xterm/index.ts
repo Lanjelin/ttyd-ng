@@ -8,6 +8,8 @@ import { ImageAddon } from '@xterm/addon-image';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { OverlayAddon } from './addons/overlay';
 import { ZmodemAddon } from './addons/zmodem';
+import { isMobileClient, isStandalone } from '../mobile';
+import { MobileKeyboard } from '../mobile-keyboard';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -90,6 +92,7 @@ export class Xterm {
     private webLinksAddon = new WebLinksAddon();
     private webglAddon?: WebglAddon;
     private zmodemAddon?: ZmodemAddon;
+    private mobileKeyboard?: MobileKeyboard;
 
     private socket?: WebSocket;
     private token: string;
@@ -115,6 +118,7 @@ export class Xterm {
 
     dispose() {
         this.disposed = true;
+        this.mobileKeyboard?.dispose();
         this.disposeListeners();
         if (this.font) {
             document.fonts.delete(this.font);
@@ -179,9 +183,16 @@ export class Xterm {
         this.fontUrl = font ? url : undefined;
         if (this.terminal) {
             this.terminal.options.fontFamily = font?.family ?? this.fallbackFontFamily;
-            this.fitAddon.fit();
+            this.fit();
         }
     }
+
+    private fit = () => {
+        // Pinch zoom scales the page, not the PTY grid. Defer all automatic
+        // fitting in the mobile PWA until native zoom returns to normal.
+        if (this.mobileKeyboard && Math.abs((window.visualViewport?.scale ?? 1) - 1) > 0.01) return;
+        this.fitAddon.fit();
+    };
 
     private onWindowUnload = (event: BeforeUnloadEvent) => {
         event.preventDefault();
@@ -200,9 +211,7 @@ export class Xterm {
         if (this.font) this.terminal.options.fontFamily = this.font.family;
         const { terminal, fitAddon, overlayAddon, clipboardAddon, webLinksAddon } = this;
         window.term = terminal as TtydTerminal;
-        window.term.fit = () => {
-            this.fitAddon.fit();
-        };
+        window.term.fit = this.fit;
 
         terminal.loadAddon(fitAddon);
         terminal.loadAddon(overlayAddon);
@@ -239,11 +248,12 @@ export class Xterm {
 
         terminal.open(parent);
         this.updateBackground();
-        fitAddon.fit();
+        this.fit();
+        if (isMobileClient() && isStandalone()) this.mobileKeyboard = new MobileKeyboard(terminal, parent, this.fit);
     }
 
     private initListeners() {
-        const { terminal, fitAddon, overlayAddon, register, sendData } = this;
+        const { terminal, overlayAddon, register, sendData } = this;
         register(
             terminal.onTitleChange(data => {
                 if (data && data !== '' && !this.titleFixed) {
@@ -251,7 +261,7 @@ export class Xterm {
                 }
             })
         );
-        register(terminal.onData(data => sendData(data)));
+        register(terminal.onData(data => sendData(this.mobileKeyboard?.filterInput(data) ?? data)));
         register(terminal.onBinary(data => sendData(Uint8Array.from(data, v => v.charCodeAt(0)))));
         register(
             terminal.onResize(({ cols, rows }) => {
@@ -277,7 +287,7 @@ export class Xterm {
             if (fitFrame) return;
             fitFrame = requestAnimationFrame(() => {
                 fitFrame = 0;
-                fitAddon.fit();
+                this.fit();
             });
         };
         const observer = new ResizeObserver(scheduleFit);
@@ -290,6 +300,9 @@ export class Xterm {
             cancelAnimationFrame(fitFrame);
         }));
         register(addEventListener(window, 'resize', scheduleFit));
+        if (this.mobileKeyboard && window.visualViewport) {
+            register(addEventListener(window.visualViewport, 'resize', scheduleFit));
+        }
         register(addEventListener(window, 'beforeunload', this.onWindowUnload));
     }
 
@@ -361,11 +374,13 @@ export class Xterm {
 
         this.doReconnect = this.reconnect;
         this.initListeners();
+        this.mobileKeyboard?.setConnected(true);
         terminal.focus();
     };
 
     private onSocketClose = (event: CloseEvent) => {
         console.log(`[ttyd] websocket connection closed with code: ${event.code}`);
+        this.mobileKeyboard?.setConnected(false);
 
         const { refreshToken, connect, doReconnect, overlayAddon } = this;
         overlayAddon.showOverlay('Connection Closed');
@@ -452,7 +467,7 @@ export class Xterm {
     };
 
     private applyPreferences(prefs: Preferences) {
-        const { terminal, fitAddon, register } = this;
+        const { terminal, register } = this;
         if (prefs.enableZmodem || prefs.enableTrzsz) {
             this.zmodemAddon = new ZmodemAddon({
                 zmodem: prefs.enableZmodem,
@@ -553,7 +568,8 @@ export class Xterm {
             }
         }
         this.updateBackground();
-        fitAddon.fit();
+        this.mobileKeyboard?.restoreFontSize();
+        this.fit();
     }
 
     private updateBackground() {
@@ -561,13 +577,17 @@ export class Xterm {
             '--terminal-background',
             this.terminal.options.theme?.background ?? '#000000'
         );
+        document.documentElement.style.setProperty(
+            '--terminal-foreground',
+            this.terminal.options.theme?.foreground ?? '#d2d2d2'
+        );
     }
 
     private setRendererType(value: RendererType) {
         const disposeWebglRenderer = () => {
             this.webglAddon?.dispose();
             this.webglAddon = undefined;
-            this.fitAddon.fit();
+            this.fit();
         };
 
         if (value === 'webgl') {
@@ -580,7 +600,7 @@ export class Xterm {
                     disposeWebglRenderer();
                 });
                 this.terminal.loadAddon(addon);
-                this.fitAddon.fit();
+                this.fit();
                 console.log('[ttyd] WebGL renderer loaded');
                 return;
             } catch (e) {

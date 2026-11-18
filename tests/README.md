@@ -102,9 +102,10 @@ and every payload arrives intact. Use it with a binary built with
   case checks actual legacy copying with the modern API unavailable.
   Cases also cover keyboard-hidden panel access, range/start reset on resize,
   disconnect/blur/hidden-page cleanup, read-only Select/Copy and desktop/browser-tab
-  exclusions. Physical iOS selection, keyboard and
-  native clipboard UI verification remains outstanding; OSC 52 is not covered
-  or introduced.
+  exclusions. User device testing reports reliable iPhone controls,
+  selection/copy (including tmux → Vim) and rotation. iPad/Android and native
+  clipboard permission/manual-copy fallback remain unverified. These selection
+  cases do not cover or introduce OSC 52.
 - Browser-zoom coverage uses Chromium's real page-scale API, not mocked viewport
   properties. It checks persistent magnification, unchanged PTY dimensions and
   working input while zoomed, then fitting/PTY resize after zoom-out. Native

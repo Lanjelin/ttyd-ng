@@ -98,9 +98,9 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
 
 ## Open risks and deliberately retained limits
 
-- Mobile PWA installation and native keyboard behavior need physical-device
-  verification before release: iPhone/iPad Safari (including floating keyboards,
-  rotation, hardware keyboards and IME) and Android Chrome. Safari lacks the
+- User testing reports reliable iPhone PWA controls, selection/copy (including
+  tmux → Vim) and rotation. Remaining physical-device release checks include
+  iPad floating/split and hardware keyboards, IME, and Android Chrome. Safari lacks the
   VirtualKeyboard API; the mobile PWA row follows inferred keyboard visibility
   in every connection state. Disconnected buttons are disabled. Native page zoom
   guards preserve container geometry and defer PTY fitting; viewport inference
@@ -111,19 +111,17 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
   cannot be suppressed from a browser/PWA; its dismiss control remains.
 - The Paste key requires browser clipboard permission and a secure context.
   Native permission/paste UI may temporarily dismiss the keyboard; the web app
-  cannot suppress it. Accessory touch focus handling was strengthened following
-  a device report, but the revised behavior still needs physical-device retesting.
+  cannot suppress it. User testing reports the revised iPhone controls working
+  reliably; native permission UI and denied-access fallback need separate checks.
 - Installed-mobile selection uses an explicit Select text / two-cell-tap / Copy
   flow, not automatic copying or OSC 52. The independent selection panel remains
   available after keyboard dismissal; viewport resize resets its range without
   closing it. Failed clipboard and legacy-copy APIs expose a native read-only
-  Selected text field for manual copying or retry. Physical iOS verification of
-  two-tap selection, permission handling, fallback and focus restoration is still
-  outstanding. Desktop emulation is not evidence of native touch correctness.
-  Copy/Close now reuse accessory focus-preserving activation and successful copy
-  closes selection. Physical retesting is required after the reported keyboard
-  dismissal; browser permission UI and legacy/manual-copy focus changes remain
-  keyboard-preservation caveats.
+  Selected text field for manual copying or retry. The user reports reliable
+  iPhone copying after refreshing the PWA, including tmux → Vim.
+  Copy/Close reuse accessory focus-preserving activation and successful copy
+  closes selection. iPad/Android, native manual-copy fallback and permission UI
+  remain unverified; desktop emulation does not certify those paths.
 - Browser/OS installation fetches may not preserve Basic/proxy authentication.
   Manifest/icons remain authenticated; install flows must be validated against
   the actual HTTPS proxy and base path. Launch URLs intentionally omit query

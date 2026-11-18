@@ -822,3 +822,12 @@ closed the selection panel and retained terminal focus. No source fix was made.
 The user subsequently reported that copying worked after refreshing the PWA,
 including tmux → Vim, and planned further device testing. The cause of the
 earlier stale clipboard was not established.
+
+### User-reported iPhone stability
+
+The user subsequently reported reliable PWA behavior, including selection/copy
+and tmux → Vim, and confirmed rotation works on iPhone. Updated current
+documentation to distinguish that device evidence from unverified iPad/Android,
+native permission/manual-copy fallback and other release-checklist scenarios.
+Pinch zoom snapping back remains unresolved; Aa text sizing is the alternative.
+This documentation update adds no new automated or physical-device test run.

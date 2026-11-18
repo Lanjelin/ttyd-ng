@@ -118,8 +118,9 @@ Viewport resize keeps the panel open but resets the range and start anchor.
 Disconnect, window blur and document hiding close it. Close clears selection and
 restores terminal focus. Read-only input enforcement remains intact; Select/Copy
 also work with `disableStdin`. Desktop and mobile-browser-tab selection
-behavior is unchanged. Physical iOS testing
-of selection, clipboard fallback and keyboard dismissal remains outstanding.
+behavior is unchanged. User testing reports reliable iPhone controls,
+selection/copy (including tmux → Vim) and rotation. iPad/Android behavior,
+native clipboard fallback and the remaining device scenarios are unverified.
 Selection no longer blurs the terminal. Copy/Close reuse the accessory keys'
 touch/pointer focus-preserving activation, with clipboard access on release.
 This avoids application-induced keyboard dismissal; browser permission UI and

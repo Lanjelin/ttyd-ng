@@ -190,73 +190,22 @@ fallback, and weight/style limits.
 
 ## Mobile installed app
 
-Serve the bundled client over HTTPS (a TLS-terminating reverse proxy is fine),
-then install it from your mobile browser. On iPhone/iPad, use **Share → Add to
-Home Screen**, enabling **Open as Web App** if offered. Other supported browsers
-offer **Install app** or **Add to Home screen**.
+Install ttyd-ng on your phone or tablet for an app-style terminal with mobile
+controls. Serve it over HTTPS, then choose **Share → Add to Home Screen** on
+iPhone/iPad, or **Install app / Add to Home screen** in other mobile browsers.
 
-- Installed mobile/tablet windows show extra keys only while the keyboard is
-  visible, whether connected or disconnected. The 11 controls use 14px labels,
-  16px icons and the same 40px height, including on a 320px-wide screen. Symbols
-  are `⎋` (Escape), `⇥` (Tab), `⌃` (Ctrl) and `⌥` (Alt), with filled arrows and
-  an original clipboard outline.
-  Ctrl/Alt apply to the next supported character; tap again to cancel.
-  Hold an arrow to repeat. Arrow order: Left, Right, Up, Down.
-  Cmd is not a standard terminal modifier.
-- Tap **Aa** at the right end of the row for **− / +** text-size controls
-  (8–32px, 1px steps). This changes terminal text and refits the PTY, not browser
-  zoom or key sizes. Tap Aa again or outside the panel to close it; hiding the
-  keyboard also closes it. The chosen size is remembered per terminal path
-  when local storage is available, overriding configured `fontSize` in the
-  mobile PWA. Desktop/browser-tab preferences are unchanged.
-- Paste reads the clipboard only when tapped, through the browser's clipboard
-  API. It requires a secure context and browser permission; a native permission
-  or paste popup may temporarily dismiss the keyboard. Canceled or unavailable
-  clipboard access does not show an application warning or long-press advice.
-  Bracketed paste and read-only enforcement remain intact; a pending clipboard
-  result is discarded if the session changes.
-- Tap **Select text**, immediately after Paste, then tap the first and last
-  terminal cells to select an inclusive range (either direction, across lines).
-  The independent **Terminal selection** panel prompts **Tap selection start**
-  and **Tap selection end**. Selection does not send terminal input or mouse
-  reports, including in applications with mouse reporting enabled.
-  Tap **Copy** explicitly; selecting text never copies automatically. Copy tries
-  the browser clipboard API, then legacy browser copying. If both fail, a
-  read-only **Selected text** field remains available for native manual selection
-  and copying, or retry Copy. Successful copying closes the selection panel.
-  This is browser-side copying, not OSC 52 clipboard integration.
-- The selection panel remains available if the keyboard and key row disappear.
-  A viewport resize clears the range/start point without closing the panel.
-  **Close** clears selection and restores terminal focus; disconnect, window blur
-  or a hidden page closes selection. Read-only terminals allow Select and Copy;
-  terminal input remains blocked. Desktop selection behavior is unchanged.
-  Selection and Copy/Close preserve input focus to avoid dismissing the keyboard.
-  Browser permission UI and the native manual-copy fallback can still affect it.
-- Keyboard visibility is inferred from viewport geometry. Keyboard hidden means
-  the row is hidden; keyboard visible means the row is shown. Disconnected
-  controls are disabled. There is no Keys/Auto toggle. Desktop windows and
-  ordinary mobile browser tabs have no row.
-- Device testing still reports pinch zoom snapping back. This remains unresolved;
-  browser page-scale tests are not proof of working native pinch gestures.
-- iOS's native previous/next/dismiss strip cannot be hidden by a browser or PWA;
-  its keyboard-dismiss control remains available. Removing it requires a native
-  wrapper, not a CSS or input-mode workaround.
-- A mobile browser can show optional installation guidance. **Not now** hides it
-  for the tab session; **Don't show again** remembers dismissal across visits
-  for that terminal path. Browser storage restrictions may prevent persistence.
-- Installation does not enable writing: `-W` is still required. It adds no
-  offline mode, authentication bypass or guarantee of background connectivity.
-  Use a server-side multiplexer such as tmux when session persistence matters.
+The installed mobile app includes:
 
-The installed launch URL deliberately excludes query parameters and fragments.
-URL-supplied command arguments and client settings are not saved into the app.
-Keep the terminal's public base path stable and forward its manifest/icon
-requests through the same authenticated HTTPS proxy. Browser/OS installation
-and credential handling vary; installation behind authentication must be tested
-in the target browser. Custom index pages must provide their own integration.
-Physical iPhone/iPad and Android verification remains an outstanding release
-requirement, including iOS two-tap selection, native manual-copy fallback and
-keyboard dismissal; desktop mobile emulation is not sufficient.
+- **Extra keys:** Escape, Tab, Ctrl, Alt and arrows, shown above the keyboard
+  while it is open. Ctrl/Alt apply to the next character.
+- **Paste:** paste clipboard text directly into the terminal.
+- **Select and copy:** tap Select beside Paste, tap the first and last text
+  positions, then Copy.
+- **Text sizing:** tap Aa for smaller/larger terminal text. Your choice is
+  remembered for that terminal.
+
+The extra controls appear only in the installed mobile app.
+
 
 ## Browser Support
 

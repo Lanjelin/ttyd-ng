@@ -18,9 +18,9 @@ async function events(server) {
         .filter(Boolean).map(line => JSON.parse(line));
 }
 
-async function withMobile(browser, testInfo, run, { standalone = true, writable = true, desktop = false, serverArgs = [] } = {}) {
+async function withMobile(browser, testInfo, run, { standalone = true, writable = true, desktop = false, serverArgs = [], width = 390 } = {}) {
     const server = await startServer({ args: [...(writable ? ['-W'] : []), ...serverArgs] });
-    const context = await browser.newContext(desktop ? {} : mobile);
+    const context = await browser.newContext(desktop ? {} : { ...mobile, viewport: { width, height: 844 } });
     if (standalone) {
         // Simulate iOS's installed-display signal, not a real OS installation.
         await context.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
@@ -44,7 +44,36 @@ async function readyKeys(page) {
     // Emulate keyboard occlusion with a real viewport resize, not UI state.
     await page.setViewportSize({ width: 390, height: 500 });
     await expect(page.getByRole('toolbar', { name: 'Terminal extra keys' })).toBeVisible();
-    await expect(key(page, 'Escape')).toBeEnabled();
+    await expect(key(page, 'Select text')).toBeEnabled();
+}
+
+const selectionPanel = page => page.getByRole('group', { name: 'Terminal selection', exact: true });
+
+async function selectionScreen(page) {
+    // Seed output through the public API, never through PTY input. Enable application
+    // mouse reporting so leaked pointer events would become observable input bytes.
+    await page.evaluate(() => new Promise(resolve => {
+        window.term.write('\x1b[?1000h\x1b[?1006h\x1b[2J\x1b[Halpha bravo\r\ncharlie delta', resolve);
+    }));
+    await expect.poll(() => page.evaluate(() => window.term.modes.mouseTrackingMode)).toBe('vt200');
+}
+
+async function tapCell(page, column, row) {
+    const point = await page.locator('.xterm-screen').evaluate((screen, { column, row }) => {
+        const bounds = screen.getBoundingClientRect();
+        return {
+            x: bounds.left + (column + 0.5) * bounds.width / window.term.cols,
+            y: bounds.top + (row + 0.5) * bounds.height / window.term.rows,
+        };
+    }, { column, row });
+    await page.touchscreen.tap(point.x, point.y);
+}
+
+async function selectBravo(page) {
+    await tapCell(page, 6, 0);
+    await expect(selectionPanel(page).getByRole('status')).toHaveText('Tap selection end');
+    await tapCell(page, 10, 0);
+    await expect.poll(() => page.evaluate(() => window.term.getSelection())).toBe('bravo');
 }
 
 test('mobile installed extra keys retain focus and deliver one-shot chords to the PTY', async ({ browser }, testInfo) => {
@@ -126,7 +155,6 @@ test('extra keys preserve paste and committed Unicode text and respect applicati
 test('extra keys cannot bypass read-only mode', async ({ browser }, testInfo) => {
     await withMobile(browser, testInfo, async (page, server) => {
         await readyKeys(page);
-        const eventCount = (await events(server)).length;
         await key(page, 'Escape').tap();
         await key(page, 'Control').tap();
         await page.keyboard.type('c');
@@ -134,6 +162,7 @@ test('extra keys cannot bypass read-only mode', async ({ browser }, testInfo) =>
             configurable: true, value: { readText: async () => 'readonly-paste' },
         }));
         await key(page, 'Paste').tap();
+        const eventCount = (await events(server)).length;
         // The ordered resize confirms the server processed preceding input frames.
         await page.setViewportSize({ width: 390, height: 460 });
         await expect.poll(async () => (await events(server)).slice(eventCount).some(event => event.type === 'resize')).toBe(true);
@@ -146,6 +175,9 @@ for (const [label, options] of [['mobile browser', { standalone: false }], ['des
         await withMobile(browser, testInfo, async page => {
             await page.setViewportSize({ width: 390, height: 500 });
             await expect(page.getByRole('toolbar', { name: 'Terminal extra keys' })).toHaveCount(0);
+            await expect(key(page, 'Select text')).toHaveCount(0);
+            await expect(selectionPanel(page)).toHaveCount(0);
+            await expect(page.locator('.mobile-selection-surface')).toHaveCount(0);
         }, options);
     });
 }
@@ -330,5 +362,227 @@ for (const limit of [8, 32]) {
             await page.keyboard.press('Enter');
             await expect.poll(() => input(server)).toBe('echo size-bound\r');
         }, { serverArgs: ['-t', `fontSize=${limit}`] });
+    });
+}
+
+test('eleven mobile controls fit a 320px row with Select directly after Paste', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async page => {
+        // Start at phone width; resizing an already fixed-width mobile page can
+        // trigger browser page scaling, which this feature deliberately avoids.
+        await page.setViewportSize({ width: 320, height: 500 });
+        const toolbar = page.getByRole('toolbar', { name: 'Terminal extra keys' });
+        await expect(toolbar).toBeVisible();
+        const buttons = toolbar.getByRole('button');
+        await expect(buttons).toHaveCount(11);
+        expect(await buttons.evaluateAll(items => items.map(item => item.getAttribute('aria-label')))).toEqual([
+            'Escape', 'Tab', 'Control', 'Alt', 'Paste', 'Select text',
+            'Arrow left', 'Arrow right', 'Arrow up', 'Arrow down', 'Text size',
+        ]);
+        const row = await toolbar.boundingBox();
+        expect(row.x).toBeGreaterThanOrEqual(0);
+        expect(row.x + row.width).toBeLessThanOrEqual(320);
+        for (const button of await buttons.all()) {
+            const bounds = await button.boundingBox();
+            expect(bounds.x).toBeGreaterThanOrEqual(row.x);
+            expect(bounds.x + bounds.width).toBeLessThanOrEqual(row.x + row.width);
+            expect(bounds.y).toBe((await buttons.first().boundingBox()).y);
+            expect(bounds.height).toBe(40);
+            expect(await button.evaluate(element => getComputedStyle(element).fontSize)).toBe('14px');
+        }
+        for (const icon of await toolbar.locator('svg').all()) {
+            const bounds = await icon.boundingBox();
+            expect(bounds.width).toBe(16);
+            expect(bounds.height).toBe(16);
+        }
+        await key(page, 'Select text').tap();
+        const panel = selectionPanel(page);
+        await expect(panel).toBeVisible();
+        const bounds = await panel.boundingBox();
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+        await expect(panel.getByRole('button', { name: 'Copy', exact: true })).toBeDisabled();
+        await expect(panel.getByRole('button', { name: 'Close', exact: true })).toBeEnabled();
+    }, { width: 320 });
+});
+
+test('mobile selection uses inclusive public selection and explicit real clipboard copy without PTY mouse input', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async (page, server) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.evaluate(() => navigator.clipboard.writeText('unchanged until Copy'));
+        await readyKeys(page);
+        await selectionScreen(page);
+        await page.evaluate(() => {
+            window.selectionBlurred = false;
+            window.term.textarea.addEventListener('blur', () => { window.selectionBlurred = true; });
+        });
+        await key(page, 'Select text').tap();
+        const panel = selectionPanel(page);
+        await expect(panel).toBeVisible();
+        await expect(panel.getByRole('status')).toHaveText('Tap selection start');
+        await expect(page.locator('.mobile-selection-surface')).toBeVisible();
+        await selectBravo(page);
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('unchanged until Copy');
+        await panel.getByRole('button', { name: 'Copy', exact: true }).tap();
+        await expect(panel).toBeHidden();
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => window.selectionBlurred)).toBe(false);
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('bravo');
+        // An ordered PTY resize is a barrier, not a timed silence assertion.
+        const eventCount = (await events(server)).length;
+        await page.setViewportSize({ width: 390, height: 460 });
+        await expect.poll(async () => (await events(server)).slice(eventCount).some(event => event.type === 'resize')).toBe(true);
+        expect(await input(server)).toBe('');
+        await expect(panel).toBeHidden();
+        await expect(page.locator('.mobile-selection-surface')).toBeHidden();
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => window.term.getSelection())).toBe('');
+        await page.keyboard.type('echo after-selection');
+        await page.keyboard.press('Enter');
+        await expect.poll(() => input(server)).toBe('echo after-selection\r');
+    });
+});
+
+test('reverse multiline selection exposes exact native text when both copy APIs fail and permits retry', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async (page, server) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await readyKeys(page);
+        await selectionScreen(page);
+        await page.evaluate(() => {
+            window.realClipboard = navigator.clipboard;
+            Object.defineProperty(navigator, 'clipboard', {
+                configurable: true, value: {
+                    writeText: async () => { throw new DOMException('Denied', 'NotAllowedError'); },
+                },
+            });
+            document.execCommand = () => false;
+        });
+        await key(page, 'Select text').tap();
+        const panel = selectionPanel(page);
+        await tapCell(page, 6, 1);
+        await expect(panel.getByRole('status')).toHaveText('Tap selection end');
+        await tapCell(page, 6, 0);
+        const selected = 'bravo\ncharlie';
+        await expect.poll(() => page.evaluate(() => window.term.getSelection())).toBe(selected);
+        await panel.getByRole('button', { name: 'Copy', exact: true }).tap();
+        const nativeText = panel.getByRole('textbox', { name: 'Selected text', exact: true });
+        await expect(nativeText).toBeVisible();
+        await expect(nativeText).toHaveValue(selected);
+        await expect(nativeText).toHaveAttribute('readonly', '');
+        await expect(panel).toBeVisible();
+        // This is a real native textarea, not terminal input or a styled text snapshot.
+        await nativeText.evaluate(element => {
+            element.focus();
+            element.setSelectionRange(0, element.value.length);
+        });
+        expect(await nativeText.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd))).toBe(selected);
+        await page.evaluate(() => {
+            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: window.realClipboard });
+        });
+        await panel.getByRole('button', { name: 'Copy', exact: true }).tap();
+        await expect(panel).toBeHidden();
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(selected);
+        const eventCount = (await events(server)).length;
+        await page.setViewportSize({ width: 390, height: 460 });
+        await expect.poll(async () => (await events(server)).slice(eventCount).some(event => event.type === 'resize')).toBe(true);
+        expect(await input(server)).toBe('');
+    });
+});
+
+test('Copy uses the legacy clipboard path when the modern API is unavailable', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async page => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.evaluate(() => {
+            window.realClipboard = navigator.clipboard;
+            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+        });
+        await readyKeys(page);
+        await selectionScreen(page);
+        await key(page, 'Select text').tap();
+        await selectBravo(page);
+        await selectionPanel(page).getByRole('button', { name: 'Copy', exact: true }).tap();
+        await expect(selectionPanel(page)).toBeHidden();
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => window.realClipboard.readText())).toBe('bravo');
+    });
+});
+
+
+test('selection panel survives keyboard dismissal and resets both its range and start anchor on resize', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async page => {
+        await readyKeys(page);
+        await selectionScreen(page);
+        await key(page, 'Select text').tap();
+        const panel = selectionPanel(page);
+        await selectBravo(page);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect(page.getByRole('toolbar', { name: 'Terminal extra keys' })).toBeHidden();
+        await expect(panel).toBeVisible();
+        await expect(panel.getByRole('status')).toHaveText('Tap selection start');
+        await expect(panel.getByRole('button', { name: 'Copy', exact: true })).toBeDisabled();
+        expect(await page.evaluate(() => window.term.getSelection())).toBe('');
+        await tapCell(page, 6, 0);
+        await expect(panel.getByRole('status')).toHaveText('Tap selection end');
+        await page.setViewportSize({ width: 390, height: 800 });
+        await expect(panel).toBeVisible();
+        await expect(panel.getByRole('status')).toHaveText('Tap selection start');
+        await tapCell(page, 10, 0);
+        await expect(panel.getByRole('status')).toHaveText('Tap selection end');
+        await expect(panel.getByRole('button', { name: 'Copy', exact: true })).toBeDisabled();
+        await tapCell(page, 6, 0);
+        await expect.poll(() => page.evaluate(() => window.term.getSelection())).toBe('bravo');
+        await panel.getByRole('button', { name: 'Close', exact: true }).tap();
+        await expect(panel).toBeHidden();
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        expect(await page.evaluate(() => window.term.getSelection())).toBe('');
+    });
+});
+
+test('read-only terminals still allow explicit selection and clipboard copy', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async (page, server) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await readyKeys(page);
+        await selectionScreen(page);
+        await expect(key(page, 'Select text')).toBeEnabled();
+        await key(page, 'Select text').tap();
+        await selectBravo(page);
+        const copy = selectionPanel(page).getByRole('button', { name: 'Copy', exact: true });
+        await expect(copy).toBeEnabled();
+        await copy.tap();
+        await expect(selectionPanel(page)).toBeHidden();
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('bravo');
+        await page.keyboard.type('blocked');
+        const eventCount = (await events(server)).length;
+        await page.setViewportSize({ width: 390, height: 460 });
+        await expect.poll(async () => (await events(server)).slice(eventCount).some(event => event.type === 'resize')).toBe(true);
+        expect(await input(server)).toBe('');
+    }, { writable: false });
+});
+
+for (const reason of ['window blur', 'hidden document', 'disconnect']) {
+    test(`selection closes and clears its range on ${reason}`, async ({ browser }, testInfo) => {
+        await withMobile(browser, testInfo, async page => {
+            await readyKeys(page);
+            await selectionScreen(page);
+            await key(page, 'Select text').tap();
+            await selectBravo(page);
+            if (reason === 'window blur') {
+                await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+            } else if (reason === 'hidden document') {
+                await page.evaluate(() => {
+                    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+                    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+                    document.dispatchEvent(new Event('visibilitychange'));
+                });
+            } else {
+                // Intentionally terminate the fixture; selection gestures themselves send no input.
+                await page.evaluate(() => window.term.input('exit\r', true));
+                await expect(key(page, 'Select text')).toBeDisabled();
+            }
+            await expect(selectionPanel(page)).toBeHidden();
+            await expect(page.locator('.mobile-selection-surface')).toBeHidden();
+            expect(await page.evaluate(() => window.term.getSelection())).toBe('');
+        }, { serverArgs: ['-t', 'disableReconnect=true'] });
     });
 }

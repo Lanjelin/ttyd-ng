@@ -272,7 +272,7 @@ export class Xterm {
         );
         register(
             terminal.onSelectionChange(() => {
-                if (this.terminal.getSelection() === '') return;
+                if (this.mobileKeyboard || this.terminal.getSelection() === '') return;
                 try {
                     document.execCommand('copy');
                 } catch (e) {

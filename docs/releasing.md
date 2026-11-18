@@ -45,6 +45,13 @@ replace validation of the commit being released.
   key sizes and keyboard focus do not. Check 8/32px bounds, saved-size restoration
   after reload/reconnect, blocked storage, and panel dismissal when the keyboard
   closes. This is terminal text sizing, not a fix for native pinch zoom.
+  Check Select beside Paste at narrow phone widths. Tap start/end in both
+  directions, including wrapped lines and Unicode, then Copy. Confirm selection
+  taps never reach vim/tmux mouse reporting, and Copy/Close stay reachable after
+  keyboard dismissal. Confirm Copy preserves an open keyboard and closes the
+  panel on success; Close cancels without copying. Exercise denied/unavailable
+  clipboard APIs and the native selectable-text fallback, read-only selection,
+  rotation and disconnect cleanup.
 - Run the full cross-build matrix, particularly 32-bit, Windows and s390x, and
   validate MSVC in its actual Windows environment. For a musl target (e.g.
   `build/cross/x86_64/ttyd`), also run the command-parsing regression test

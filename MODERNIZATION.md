@@ -113,6 +113,17 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
   Native permission/paste UI may temporarily dismiss the keyboard; the web app
   cannot suppress it. Accessory touch focus handling was strengthened following
   a device report, but the revised behavior still needs physical-device retesting.
+- Installed-mobile selection uses an explicit Select text / two-cell-tap / Copy
+  flow, not automatic copying or OSC 52. The independent selection panel remains
+  available after keyboard dismissal; viewport resize resets its range without
+  closing it. Failed clipboard and legacy-copy APIs expose a native read-only
+  Selected text field for manual copying or retry. Physical iOS verification of
+  two-tap selection, permission handling, fallback and focus restoration is still
+  outstanding. Desktop emulation is not evidence of native touch correctness.
+  Copy/Close now reuse accessory focus-preserving activation and successful copy
+  closes selection. Physical retesting is required after the reported keyboard
+  dismissal; browser permission UI and legacy/manual-copy focus changes remain
+  keyboard-preservation caveats.
 - Browser/OS installation fetches may not preserve Basic/proxy authentication.
   Manifest/icons remain authenticated; install flows must be validated against
   the actual HTTPS proxy and base path. Launch URLs intentionally omit query

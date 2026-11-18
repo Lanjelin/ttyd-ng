@@ -88,6 +88,23 @@ and every payload arrives intact. Use it with a binary built with
   unchanged key-row height/browser scale, focus retention, panel dismissal,
   persistence overriding a configured font size after reload, bounds, and
   continued input with storage writes blocked.
+- Mobile selection cases cover the 11-control row at 320px (14px labels, 16px
+  icons, 40px buttons), Select immediately after Paste, accessible two-tap prompts,
+  inclusive forward/reverse multiline ranges.
+  Cell coordinates come from `.xterm-screen` bounds and public terminal dimensions;
+  known output is seeded with `terminal.write()` and its completion callback.
+  Application mouse reporting is enabled, and an ordered real-PTY resize barrier
+  checks that selection/copy sent no input before typing resumes.
+  Real clipboard permission coverage checks explicit Copy, no automatic copy,
+  no textarea blur during selection/modern Copy, and dismissal after success;
+  simulated clipboard rejection plus `execCommand(false)` checks exact native
+  read-only fallback text, manual selection and real clipboard retry. A separate
+  case checks actual legacy copying with the modern API unavailable.
+  Cases also cover keyboard-hidden panel access, range/start reset on resize,
+  disconnect/blur/hidden-page cleanup, read-only Select/Copy and desktop/browser-tab
+  exclusions. Physical iOS selection, keyboard and
+  native clipboard UI verification remains outstanding; OSC 52 is not covered
+  or introduced.
 - Browser-zoom coverage uses Chromium's real page-scale API, not mocked viewport
   properties. It checks persistent magnification, unchanged PTY dimensions and
   working input while zoomed, then fitting/PTY resize after zoom-out. Native

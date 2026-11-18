@@ -96,6 +96,35 @@ takes precedence. Invalid/out-of-range stored values are ignored; blocked storag
 retains the choice only in the current page. Keyboard dismissal, disconnect and
 outside taps close the panel.
 
+Select text sits directly after Paste in the 11-control accessory row. Labels are
+14px, icons 16px and buttons remain 40px high, fitting a 320px viewport. Its
+independent `role="group"` / `aria-label="Terminal selection"` panel stays
+accessible when keyboard dismissal hides the toolbar. A transparent
+`.mobile-selection-surface` intercepts two taps on `.xterm-screen`; map screen
+bounds through public `terminal.cols` / `terminal.rows`, then use public
+`terminal.select()` for an inclusive, direction-independent range. Prompts are
+`Tap selection start` and `Tap selection end`. Do not synthesize mouse events or
+send input, even when the application enables mouse reporting.
+
+Mobile selection requires explicit Copy; it does not use automatic selection
+copying or OSC 52. Copy tries `navigator.clipboard.writeText()`, then
+`document.execCommand('copy')`. A reported success closes the panel and selection.
+If both fail, expose the exact text in a native read-only textarea labelled
+`Selected text` inside the panel, permitting manual selection/copy and Copy retry.
+The selection panel is separate from the removed application Paste warning:
+denied Paste still produces no app popup.
+
+Viewport resize keeps the panel open but resets the range and start anchor.
+Disconnect, window blur and document hiding close it. Close clears selection and
+restores terminal focus. Read-only input enforcement remains intact; Select/Copy
+also work with `disableStdin`. Desktop and mobile-browser-tab selection
+behavior is unchanged. Physical iOS testing
+of selection, clipboard fallback and keyboard dismissal remains outstanding.
+Selection no longer blurs the terminal. Copy/Close reuse the accessory keys'
+touch/pointer focus-preserving activation, with clipboard access on release.
+This avoids application-induced keyboard dismissal; browser permission UI and
+the native manual-copy fallback can still move focus.
+
 Use the regression scenarios in `tests/` and the physical-device checklist in
 `docs/releasing.md`. Desktop-emulated viewport changes do not prove iOS keyboard
 animation, floating/split keyboard behavior, or authenticated app installation.

@@ -196,9 +196,10 @@ Home Screen**, enabling **Open as Web App** if offered. Other supported browsers
 offer **Install app** or **Add to Home screen**.
 
 - Installed mobile/tablet windows show extra keys only while the keyboard is
-  visible, whether connected or disconnected. Keys are 40px high. Symbols are
-  `⎋` (Escape), `⇥` (Tab), `⌃` (Ctrl) and `⌥` (Alt), with filled arrows and an
-  original clipboard outline.
+  visible, whether connected or disconnected. The 11 controls use 14px labels,
+  16px icons and the same 40px height, including on a 320px-wide screen. Symbols
+  are `⎋` (Escape), `⇥` (Tab), `⌃` (Ctrl) and `⌥` (Alt), with filled arrows and
+  an original clipboard outline.
   Ctrl/Alt apply to the next supported character; tap again to cancel.
   Hold an arrow to repeat. Arrow order: Left, Right, Up, Down.
   Cmd is not a standard terminal modifier.
@@ -214,6 +215,23 @@ offer **Install app** or **Add to Home screen**.
   clipboard access does not show an application warning or long-press advice.
   Bracketed paste and read-only enforcement remain intact; a pending clipboard
   result is discarded if the session changes.
+- Tap **Select text**, immediately after Paste, then tap the first and last
+  terminal cells to select an inclusive range (either direction, across lines).
+  The independent **Terminal selection** panel prompts **Tap selection start**
+  and **Tap selection end**. Selection does not send terminal input or mouse
+  reports, including in applications with mouse reporting enabled.
+  Tap **Copy** explicitly; selecting text never copies automatically. Copy tries
+  the browser clipboard API, then legacy browser copying. If both fail, a
+  read-only **Selected text** field remains available for native manual selection
+  and copying, or retry Copy. Successful copying closes the selection panel.
+  This is browser-side copying, not OSC 52 clipboard integration.
+- The selection panel remains available if the keyboard and key row disappear.
+  A viewport resize clears the range/start point without closing the panel.
+  **Close** clears selection and restores terminal focus; disconnect, window blur
+  or a hidden page closes selection. Read-only terminals allow Select and Copy;
+  terminal input remains blocked. Desktop selection behavior is unchanged.
+  Selection and Copy/Close preserve input focus to avoid dismissing the keyboard.
+  Browser permission UI and the native manual-copy fallback can still affect it.
 - Keyboard visibility is inferred from viewport geometry. Keyboard hidden means
   the row is hidden; keyboard visible means the row is shown. Disconnected
   controls are disabled. There is no Keys/Auto toggle. Desktop windows and
@@ -236,8 +254,9 @@ Keep the terminal's public base path stable and forward its manifest/icon
 requests through the same authenticated HTTPS proxy. Browser/OS installation
 and credential handling vary; installation behind authentication must be tested
 in the target browser. Custom index pages must provide their own integration.
-Physical iPhone/iPad and Android keyboard behavior remains a release-validation
-requirement; desktop mobile emulation is not sufficient.
+Physical iPhone/iPad and Android verification remains an outstanding release
+requirement, including iOS two-tap selection, native manual-copy fallback and
+keyboard dismissal; desktop mobile emulation is not sufficient.
 
 ## Browser Support
 

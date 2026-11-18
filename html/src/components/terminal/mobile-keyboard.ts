@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
+import { MobileSelection } from './mobile-selection';
 import './mobile-keyboard.scss';
 
 type Modifier = 'ctrl' | 'alt';
@@ -31,6 +32,7 @@ export class MobileKeyboard {
     private fontIncrease = document.createElement('button');
     private preferredFontSize?: number;
     private fontStorageKey = `ttyd-ng:font-size:${window.location.pathname}`;
+    private selection: MobileSelection;
 
     constructor(private terminal: Terminal, host: HTMLElement, private fit: () => void) {
         this.root = host.parentElement as HTMLElement;
@@ -40,32 +42,34 @@ export class MobileKeyboard {
         this.bar.setAttribute('aria-label', 'Terminal extra keys');
         this.bar.hidden = true;
         for (const [key, label] of [
-            ['escape', '⎋'], ['tab', '⇥'], ['ctrl', '⌃'], ['alt', '⌥'], ['paste', ''],
+            ['escape', '⎋'], ['tab', '⇥'], ['ctrl', '⌃'], ['alt', '⌥'], ['paste', ''], ['select', ''],
             ['left', '◀'], ['right', '▶'], ['up', '▲'], ['down', '▼'], ['font', 'Aa'],
         ]) {
             const button = document.createElement('button');
             button.type = 'button';
             button.textContent = label;
-            if (key === 'paste') {
+            if (key === 'paste' || key === 'select') {
                 // Original clipboard outline, not a platform-restricted icon asset.
                 const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 icon.setAttribute('viewBox', '0 0 24 24');
                 icon.setAttribute('aria-hidden', 'true');
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', 'M9 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-3M9 3h6v5H9z');
+                path.setAttribute('d', key === 'paste' ?
+                    'M9 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-3M9 3h6v5H9z' :
+                    'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z');
                 icon.append(path);
                 button.append(icon);
             }
             button.setAttribute('aria-label', ({ escape: 'Escape', tab: 'Tab', ctrl: 'Control', alt: 'Alt',
-                paste: 'Paste', left: 'Arrow left', down: 'Arrow down', up: 'Arrow up', right: 'Arrow right',
+                paste: 'Paste', select: 'Select text', left: 'Arrow left', down: 'Arrow down', up: 'Arrow up', right: 'Arrow right',
                 font: 'Text size' })[key] as string);
-            if (key === 'ctrl' || key === 'alt') button.setAttribute('aria-pressed', 'false');
+            if (key === 'ctrl' || key === 'alt' || key === 'select') button.setAttribute('aria-pressed', 'false');
             if (key === 'font') {
                 button.setAttribute('aria-expanded', 'false');
                 button.setAttribute('aria-controls', 'terminal-font-size');
             }
             this.bindButton(button, () => this.press(key), ['left', 'right', 'up', 'down'].includes(key),
-                key === 'paste' || key === 'font');
+                key === 'paste' || key === 'font' || key === 'select');
             this.buttons.set(key, button);
             this.bar.append(button);
         }
@@ -100,6 +104,12 @@ export class MobileKeyboard {
             }
         }, true);
         this.root.append(this.fontPanel, this.bar);
+        this.selection = new MobileSelection(terminal, host, active => {
+            this.clearModifiers();
+            this.stopRepeat();
+            this.setFontPanel(false);
+            this.buttons.get('select')?.setAttribute('aria-pressed', String(active));
+        }, (button, action) => this.bindButton(button, action, false, true));
         const textarea = terminal.textarea;
         if (textarea) {
             this.listen(textarea, 'focus', this.schedule);
@@ -181,7 +191,10 @@ export class MobileKeyboard {
     setConnected(connected: boolean) {
         if (this.connected !== connected) this.connection++;
         this.connected = connected;
-        if (!connected) this.reset();
+        if (!connected) {
+            this.selection.close();
+            this.reset();
+        }
         this.schedule();
     }
 
@@ -244,7 +257,13 @@ export class MobileKeyboard {
     }
 
     private press(key: string) {
-        if (!this.connected || this.terminal.options.disableStdin) return;
+        if (!this.connected) return;
+        if (key === 'select') {
+            this.selection.toggle();
+            return;
+        }
+        if (this.terminal.options.disableStdin) return;
+        this.selection.close();
         if (key === 'font') {
             this.clearModifiers();
             this.setFontPanel(this.fontPanel.hidden !== false);
@@ -358,7 +377,7 @@ export class MobileKeyboard {
         this.bar.hidden = !keyboard;
         if (!keyboard) this.setFontPanel(false);
         for (const [key, button] of this.buttons) {
-            button.disabled = !this.connected || this.terminal.options.disableStdin ||
+            button.disabled = !this.connected || (key !== 'select' && this.terminal.options.disableStdin) ||
                 (key === 'paste' && this.readingClipboard);
         }
         // Let the browser magnify/pan the existing page. Refitting it to the
@@ -374,6 +393,7 @@ export class MobileKeyboard {
         this.disposed = true;
         cancelAnimationFrame(this.frame);
         this.stopRepeat();
+        this.selection.dispose();
         for (const remove of this.listeners) remove();
         this.bar.remove();
         this.fontPanel.remove();

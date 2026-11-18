@@ -758,3 +758,67 @@ paste, denied-access continued typing without a popup, reconnect safety and
 font sizing. Visually inspected the reordered row in Chromium mobile emulation
 with DOM rendering. Native pinch zoom and touch selection remain deferred.
 Updated build/cross/x86_64/ttyd and its checksum; no commit, push or release.
+
+### Explicit mobile selection and copy
+
+Added mobile-PWA-only Select text directly after Paste in an 11-control row:
+14px labels, 16px icons and unchanged 40px button height, including narrow 320px
+layouts. The independent Terminal selection panel prompts for the first and last
+cell; two taps select an inclusive range in either direction through xterm's
+public selection API, without synthetic mouse events or PTY input.
+
+Selection requires explicit Copy, never automatic copying or OSC 52. Clipboard
+write falls back to legacy copying, then a native read-only Selected text field
+with manual-selection and Copy-retry access. Only API-reported success displays
+Copied. The panel remains accessible after the keyboard hides the toolbar.
+Viewport resize clears its range/start anchor; Done restores terminal focus and
+clears selection, while disconnect, blur and document hiding close the panel.
+Read-only terminals retain Select/Copy without weakening input enforcement. Desktop
+selection and ordinary mobile-browser-tab behavior are unchanged.
+
+Focused regression scenarios were added for real permission-granted clipboard
+copy, denied clipboard/legacy-copy fallback with exact reverse-multiline text,
+retry, application mouse-reporting isolation, ordered PTY input barriers,
+keyboard-hidden panel access, resize/cleanup, read-only behavior and narrow row
+  bounds. Frontend checks/production generation and native/static-musl builds
+  passed. The first selected run passed 19/22 cases; three new assertions
+  incorrectly assumed server read-only disables frontend keys, or resized an
+  already fixed-width mobile page into browser page scaling. Corrected those
+  test assumptions without changing application behavior. The five-case
+  correction run passed, including real legacy clipboard copying with the
+  modern API unavailable and real clipboard retry after simulated denial.
+  The retained keyboard/selection scenarios passed across these runs; the
+  known-unresolved native pinch path was excluded.
+
+Visually inspected the one-row controls and highlighted two-tap selection with
+Copy/Done in Chromium mobile emulation using DOM rendering. Updated
+`build/cross/x86_64/ttyd` and its checksum. Physical iOS selection, native
+manual-copy fallback and keyboard behavior remain unverified. The reported
+native pinch snap-back remains unresolved, and denied Paste still has no
+application popup or long-press advice. Nothing committed, pushed or released.
+
+### Preserve keyboard focus and dismiss selection after copy
+
+Following a device report that Copy dismisses the keyboard, selection no longer
+explicitly blurs xterm. Copy and the renamed Close control reuse the accessory
+keys' focus-preserving touch/pointer activation, invoking clipboard access on
+release. Successful modern or legacy copying clears selection and closes its
+panel; failure retains the native manual-copy fallback and retry.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 22 selected keyboard/selection cases passed, including no input-textarea
+blur through modern Copy, automatic dismissal, real clipboard contents,
+legacy copying, denied-copy retry and Close cancellation. The unresolved
+browser-zoom case was excluded. Chromium mobile-emulation UI inspection showed
+Copy/Close, retained input focus, matching clipboard text and a hidden panel
+after Copy. Physical iOS keyboard/permission behavior still needs retesting.
+Refreshed `build/cross/x86_64/ttyd` and its checksum. No commit, push or release.
+
+### Vim copy investigation
+
+A local real Vim 9.2 session using the alternate screen and mouse reporting
+copied the selected text to Chromium's clipboard through the PWA controls,
+closed the selection panel and retained terminal focus. No source fix was made.
+The user subsequently reported that copying worked after refreshing the PWA,
+including tmux → Vim, and planned further device testing. The cause of the
+earlier stale clipboard was not established.

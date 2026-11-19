@@ -87,6 +87,20 @@ and uses `terminal.paste()`. Clipboard permission UI is browser-owned; asynchron
 results are rejected across connection changes. Canceled/unavailable clipboard
 access does not show an application popup or manual-paste advice.
 
+The installed-mobile container is fixed while the keyboard is inferred open.
+At normal page scale, xterm's custom scrollbar declares `touch-action: none`
+and the terminal screen uses `touch-action: pinch-zoom`. Single-finger swipes
+scroll xterm through public `scrollLines()`, with fractional cell movement
+carried between events, whether the keyboard is open or closed. This claims the
+gesture before Safari pans its viewport. Full-screen alternate buffers have no
+history to scroll; no mouse reports, wheel events or terminal input are fabricated.
+
+Selection surfaces and manual-copy fields are separate from the screen hit
+target. Multitouch, keyboard dismissal and zoom cancel the swipe tracker; zoomed
+panning and two-finger gestures remain browser-owned. The slider protection is
+retained. Overscroll containment stays scoped to the mobile PWA container.
+Verify Safari's native keyboard/viewport behavior on an iPhone.
+
 The right-end Aa button opens a focus-preserving font-size panel (8–32px, 1px
 steps). Changes use xterm's `fontSize` and the shared fit callback; no input bytes
 or new WebSocket commands are generated. Only the terminal font changes, not the

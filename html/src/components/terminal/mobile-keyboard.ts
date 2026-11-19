@@ -33,6 +33,8 @@ export class MobileKeyboard {
     private preferredFontSize?: number;
     private fontStorageKey = `ttyd-ng:font-size:${window.location.pathname}`;
     private selection: MobileSelection;
+    private touchScrollEnabled = false;
+    private scrollTouch?: { id: number; y: number; pending: number; lineHeight: number };
 
     constructor(private terminal: Terminal, host: HTMLElement, private fit: () => void) {
         this.root = host.parentElement as HTMLElement;
@@ -110,6 +112,45 @@ export class MobileKeyboard {
             this.setFontPanel(false);
             this.buttons.get('select')?.setAttribute('aria-pressed', String(active));
         }, (button, action) => this.bindButton(button, action, false, true));
+        this.listen(host, 'touchstart', event => {
+            this.scrollTouch = undefined;
+            const touch = event as TouchEvent;
+            if (!this.touchScrollEnabled || touch.touches.length !== 1) return;
+            const target = event.target;
+            const screen = target instanceof Element ? target.closest('.xterm-screen') : null;
+            if (!screen) return;
+            const lineHeight = screen.getBoundingClientRect().height / terminal.rows;
+            if (lineHeight <= 0) return;
+            this.scrollTouch = { id: touch.touches[0].identifier, y: touch.touches[0].clientY, pending: 0, lineHeight };
+        }, { passive: true });
+        this.listen(host, 'touchmove', event => {
+            const touch = event as TouchEvent;
+            if (!this.touchScrollEnabled || touch.touches.length !== 1) {
+                this.scrollTouch = undefined;
+                return;
+            }
+            const target = event.target;
+            if (target instanceof Element && target.closest('.xterm-scrollable-element > .scrollbar')) {
+                if (event.cancelable) event.preventDefault();
+                return;
+            }
+            const drag = this.scrollTouch;
+            if (!drag || touch.touches[0].identifier !== drag.id) return;
+            // xterm 6 uses a custom, pointer-driven scrollbar, not a native
+            // scrolling text surface. Claim the screen swipe before Safari pans
+            // its keyboard viewport and scroll through xterm's public API.
+            if (event.cancelable) event.preventDefault();
+            drag.pending += drag.y - touch.touches[0].clientY;
+            drag.y = touch.touches[0].clientY;
+            const lines = Math.trunc(drag.pending / drag.lineHeight);
+            if (lines !== 0) {
+                terminal.scrollLines(lines);
+                drag.pending -= lines * drag.lineHeight;
+            }
+        }, { passive: false });
+        for (const type of ['touchend', 'touchcancel']) {
+            this.listen(host, type, () => { this.scrollTouch = undefined; }, { passive: true });
+        }
         const textarea = terminal.textarea;
         if (textarea) {
             this.listen(textarea, 'focus', this.schedule);
@@ -341,6 +382,7 @@ export class MobileKeyboard {
     }
 
     reset() {
+        this.scrollTouch = undefined;
         this.clearModifiers();
         this.stopRepeat();
         this.setFontPanel(false);
@@ -368,11 +410,15 @@ export class MobileKeyboard {
         // height before inferring keyboard occlusion, rather than hiding the
         // row simply because the page was magnified.
         const keyboard = this.baselineHeight - height * scale > Math.max(100, this.baselineHeight * 0.18);
+        if (this.keyboardOpen !== keyboard) this.scrollTouch = undefined;
         if (this.keyboardOpen && !keyboard) {
             this.clearModifiers();
             this.stopRepeat();
         }
         this.keyboardOpen = keyboard;
+        this.touchScrollEnabled = !zoomed;
+        if (!this.touchScrollEnabled) this.scrollTouch = undefined;
+        this.root.classList.toggle('mobile-scroll-contained', this.touchScrollEnabled);
         this.root.classList.toggle('mobile-keyboard-open', keyboard);
         this.bar.hidden = !keyboard;
         if (!keyboard) this.setFontPanel(false);
@@ -397,7 +443,7 @@ export class MobileKeyboard {
         for (const remove of this.listeners) remove();
         this.bar.remove();
         this.fontPanel.remove();
-        this.root.classList.remove('mobile-pwa', 'mobile-keyboard-open');
+        this.root.classList.remove('mobile-pwa', 'mobile-keyboard-open', 'mobile-scroll-contained');
         for (const property of ['top', 'left', 'width', 'height']) this.root.style.removeProperty(property);
     }
 }

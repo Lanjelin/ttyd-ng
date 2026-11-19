@@ -106,6 +106,15 @@ and every payload arrives intact. Use it with a binary built with
   selection/copy (including tmux → Vim) and rotation. iPad/Android and native
   clipboard permission/manual-copy fallback remain unverified. These selection
   cases do not cover or introduce OSC 52.
+- Mobile scroll coverage uses genuine Chromium touch drags on xterm's scrollbar
+  and screen. In both keyboard states, screen cases check proportional/reversed
+  scrolling, top-boundary containment, stable page/container position, retained
+  focus and continued typing; slider cases check both history endpoints.
+  Two-finger movement does not scroll xterm, and
+  swipes in a mouse-enabled alternate buffer send no terminal input.
+  Keyboard-hidden wheel scrolling is also exercised. Viewport resizing emulates
+  keyboard occlusion, not Safari's native keyboard; the reported iOS viewport
+  bounce still needs device testing.
 - Browser-zoom coverage uses Chromium's real page-scale API, not mocked viewport
   properties. It checks persistent magnification, unchanged PTY dimensions and
   working input while zoomed, then fitting/PTY resize after zoom-out. Native

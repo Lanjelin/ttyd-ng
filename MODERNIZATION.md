@@ -109,6 +109,13 @@ Unfixed upstream-matching defects are tracked in [TODO.md](TODO.md).
   Standalone installation does not grant native keyboard-accessory APIs or
   guarantee background WebSocket survival. The native iOS form-assistant strip
   cannot be suppressed from a browser/PWA; its dismiss control remains.
+  A subsequent keyboard-open scroll report prompted scoped overscroll
+  containment, a fixed mobile container and protection of xterm scrollbar touch
+  drags. The user subsequently confirmed keyboard-open screen swiping works
+  reliably after routing single-finger movement into xterm scrollback. The same
+  handling now applies with the keyboard closed, at normal scale, without
+  synthesizing input. Both states pass Chromium coverage; the keyboard-closed
+  extension still needs physical-device testing.
 - The Paste key requires browser clipboard permission and a secure context.
   Native permission/paste UI may temporarily dismiss the keyboard; the web app
   cannot suppress it. User testing reports the revised iPhone controls working

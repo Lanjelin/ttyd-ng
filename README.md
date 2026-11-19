@@ -203,6 +203,8 @@ The installed mobile app includes:
   positions, then Copy.
 - **Text sizing:** tap Aa for smaller/larger terminal text. Your choice is
   remembered for that terminal.
+- **Scrolling:** swipe over terminal text to scroll back, with the keyboard open
+  or closed.
 
 The extra controls appear only in the installed mobile app.
 

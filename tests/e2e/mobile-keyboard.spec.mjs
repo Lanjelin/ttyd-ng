@@ -69,6 +69,28 @@ async function tapCell(page, column, row) {
     await page.touchscreen.tap(point.x, point.y);
 }
 
+async function swipeScreen(page, from, to, fingers = 1) {
+    const bounds = await page.locator('.xterm-screen').boundingBox();
+    const session = await page.context().newCDPSession(page);
+    const points = fraction => Array.from({ length: fingers }, (_, index) => ({
+        id: index + 1,
+        x: bounds.x + bounds.width / 2 + (index - (fingers - 1) / 2) * 40,
+        y: bounds.y + bounds.height * fraction,
+    }));
+    try {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: points(from) });
+        for (let step = 1; step <= 12; step++) {
+            await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove', touchPoints: points(from + (to - from) * step / 12),
+            });
+            await page.evaluate(() => new Promise(requestAnimationFrame));
+        }
+    } finally {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await session.detach();
+    }
+}
+
 async function selectBravo(page) {
     await tapCell(page, 6, 0);
     await expect(selectionPanel(page).getByRole('status')).toHaveText('Tap selection end');
@@ -586,3 +608,111 @@ for (const reason of ['window blur', 'hidden document', 'disconnect']) {
         }, { serverArgs: ['-t', 'disableReconnect=true'] });
     });
 }
+
+test('keyboard-open scrollbar touch drags scroll terminal history without moving the page', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async (page, server) => {
+        await readyKeys(page);
+        await page.evaluate(() => new Promise(resolve => {
+            window.term.write(Array.from({ length: 160 }, (_, index) => `\r\nscroll-line-${index}`).join(''), resolve);
+        }));
+        await expect.poll(() => page.evaluate(() => window.term.buffer.active.baseY)).toBeGreaterThan(100);
+        await expect.poll(() => page.evaluate(() =>
+            window.term.buffer.active.viewportY === window.term.buffer.active.baseY)).toBe(true);
+        const screen = page.locator('.xterm-screen');
+        const slider = page.locator('.xterm-scrollable-element > .scrollbar.vertical > .slider');
+        const root = await page.locator('#terminal-container').boundingBox();
+        const session = await page.context().newCDPSession(page);
+        try {
+            for (const edge of ['top', 'bottom']) {
+                // Reveal xterm's auto-hiding scrollbar through its normal hover
+                // path, then use genuine touch events, not mouse-drag simulation.
+                await screen.hover();
+                const thumb = await slider.boundingBox();
+                const bounds = await screen.boundingBox();
+                const from = { x: thumb.x + thumb.width / 2, y: thumb.y + thumb.height / 2 };
+                const toY = edge === 'top' ? bounds.y + 4 : bounds.y + bounds.height - 4;
+                await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+                try {
+                    for (let step = 1; step <= 12; step++) {
+                        await session.send('Input.dispatchTouchEvent', {
+                            type: 'touchMove',
+                            touchPoints: [{ x: from.x, y: from.y + (toY - from.y) * step / 12 }],
+                        });
+                        await page.evaluate(() => new Promise(requestAnimationFrame));
+                    }
+                } finally {
+                    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                }
+                await expect.poll(() => page.evaluate(() => window.term.buffer.active.viewportY))
+                    .toBe(edge === 'top' ? 0 : await page.evaluate(() => window.term.buffer.active.baseY));
+                expect(await page.locator('#terminal-container').boundingBox()).toEqual(root);
+                expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual({ x: 0, y: 0 });
+            }
+        } finally {
+            await session.detach();
+        }
+        await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+        await page.keyboard.type('after-scroll');
+        await expect.poll(() => input(server)).toBe('after-scroll');
+        // Keyboard-hidden wheel scrolling remains owned by xterm as before.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect(page.getByRole('toolbar', { name: 'Terminal extra keys' })).toBeHidden();
+        await screen.hover();
+        await page.mouse.wheel(0, -300);
+        await expect.poll(() => page.evaluate(() =>
+            window.term.buffer.active.viewportY < window.term.buffer.active.baseY)).toBe(true);
+    });
+});
+
+for (const keyboardOpen of [true, false]) {
+    test(`keyboard-${keyboardOpen ? 'open' : 'closed'} screen swipes move terminal scrollback, not the page`, async ({ browser }, testInfo) => {
+        await withMobile(browser, testInfo, async (page, server) => {
+            if (keyboardOpen) await readyKeys(page);
+            else await expect(page.getByRole('toolbar', { name: 'Terminal extra keys' })).toBeHidden();
+            await page.evaluate(() => new Promise(resolve => {
+                window.term.write(Array.from({ length: 160 }, (_, index) => `\r\nswipe-line-${index}`).join(''), resolve);
+            }));
+            await expect.poll(() => page.evaluate(() => window.term.buffer.active.baseY)).toBeGreaterThan(100);
+            const start = await page.evaluate(() => window.term.buffer.active.viewportY);
+            const root = await page.locator('#terminal-container').boundingBox();
+            await swipeScreen(page, 0.25, 0.75);
+            await expect.poll(() => page.evaluate(() => window.term.buffer.active.viewportY)).toBeLessThan(start);
+            expect(await page.evaluate(() => window.term.buffer.active.viewportY)).toBeGreaterThan(0);
+            await swipeScreen(page, 0.75, 0.25);
+            await expect.poll(() => page.evaluate(original => Math.abs(window.term.buffer.active.viewportY - original), start))
+                .toBeLessThanOrEqual(1);
+            await page.evaluate(() => window.term.scrollToTop());
+            await swipeScreen(page, 0.25, 0.75);
+            expect(await page.evaluate(() => window.term.buffer.active.viewportY)).toBe(0);
+            expect(await page.locator('#terminal-container').boundingBox()).toEqual(root);
+            expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual({ x: 0, y: 0 });
+            await expect(page.locator('.xterm-helper-textarea')).toBeFocused();
+            await page.keyboard.type('after-swipe');
+            await expect.poll(() => input(server)).toBe('after-swipe');
+        });
+    });
+}
+
+test('screen swipe handling leaves two-finger gestures and application mouse input alone', async ({ browser }, testInfo) => {
+    await withMobile(browser, testInfo, async (page, server) => {
+        await readyKeys(page);
+        await page.evaluate(() => new Promise(resolve => {
+            window.term.write(Array.from({ length: 160 }, (_, index) => `\r\nmultitouch-line-${index}`).join(''), resolve);
+        }));
+        await expect.poll(() => page.evaluate(() => window.term.buffer.active.baseY)).toBeGreaterThan(100);
+        const start = await page.evaluate(() => window.term.buffer.active.viewportY);
+        await swipeScreen(page, 0.25, 0.75, 2);
+        expect(await page.evaluate(() => window.term.buffer.active.viewportY)).toBe(start);
+        // Full-screen TUIs have no scrollback. Swipes must not turn into mouse
+        // reports or terminal keys while consuming the one-finger page pan.
+        await page.evaluate(() => new Promise(resolve => {
+            window.term.write('\x1b[?1049h\x1b[?1000h\x1b[?1006hvim-like-screen', resolve);
+        }));
+        await swipeScreen(page, 0.25, 0.75);
+        expect(await page.evaluate(() => window.term.buffer.active.viewportY)).toBe(0);
+        const eventCount = (await events(server)).length;
+        await page.setViewportSize({ width: 390, height: 460 });
+        await expect.poll(async () => (await events(server)).slice(eventCount).some(event => event.type === 'resize')).toBe(true);
+        expect(await input(server)).toBe('');
+    });
+});

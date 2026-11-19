@@ -37,6 +37,10 @@ replace validation of the commit being released.
   disconnected controls must be disabled.
   Check pinch zoom/panning, input while zoomed and normal fitting after zoom-out;
   zoom must not silently reflow the PTY or reset itself.
+  With the keyboard open and closed, drag xterm's scrollbar through history and both ends,
+  then swipe up/down over terminal text. Safari must not take over or bounce the
+  canvas; reaching a history boundary must leave the page stationary. Recheck
+  keyboard-hidden scrolling, touch selection, rotation and two-finger gestures.
   Verify Ctrl/Alt, held-arrow release/cancel, vim/tmux cursor modes, paste, IME,
   reconnect and read-only mode. Confirm no row in browser tabs or on desktop,
   prompt dismissal survives reload, and the installed launch does not retain

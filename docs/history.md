@@ -831,3 +831,76 @@ documentation to distinguish that device evidence from unverified iPad/Android,
 native permission/manual-copy fallback and other release-checklist scenarios.
 Pinch zoom snapping back remains unresolved; Aa text sizing is the alternative.
 This documentation update adds no new automated or physical-device test run.
+
+### Keyboard-open scrollbar containment (2026-11-19)
+
+After release, the user reported competing Safari/page and terminal scrollbars
+with the iPhone keyboard open: native scrolling moved the canvas briefly and
+snapped back, while keyboard-hidden terminal scrollback worked.
+
+The installed-mobile container now uses fixed positioning while the keyboard is
+inferred open, with scoped overscroll containment. Its xterm scrollbar opts out
+of native touch panning; a non-passive listener also cancels single-finger
+scrollbar touchmove defaults only while the keyboard is open at normal scale.
+Screen swipes, selection surfaces, manual-copy fields and zoomed/multitouch
+events are not intercepted by that listener. No global scroll reset or blanket
+document touch handler was added.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 23 selected keyboard/selection/scroll cases passed, including genuine touch
+scrollbar drags to both history endpoints, stable page/container position,
+retained focus, continued typing and keyboard-hidden wheel scrolling.
+The known-unresolved browser-zoom case was excluded.
+
+The shared browser broker was unavailable, so visual verification used a
+temporary direct Playwright session against the real static executable with DOM
+rendering. After a genuine touch drag, the screenshot showed scroll-line-0 at
+the top, the keyboard accessory row and scrollbar; terminal focus remained and
+page scroll stayed zero. This is Chromium mobile emulation, not proof of fixing
+Safari's native keyboard viewport behavior. The user will test on iPhone.
+Refreshed `build/cross/x86_64/ttyd` and its checksum; no commit, push or release.
+
+### Keyboard-open terminal swipes (2026-11-19)
+
+The user reported the scrollbar drag became more reliable after containment,
+but swiping over terminal text still moved Safari's native viewport and bounced
+back. The previous patch intentionally protected only the custom scrollbar.
+
+At normal scale with the keyboard open, the terminal screen now declares
+`touch-action: pinch-zoom` and a single-finger swipe tracker routes vertical
+movement to public `terminal.scrollLines()`, preserving fractional cell deltas.
+The existing scrollbar protection remains. Selection/manual-copy surfaces are
+not screen swipe targets; multitouch, keyboard dismissal and zoom release the
+tracker. No application mouse reports, wheel events or terminal keys are
+synthesized; alternate-screen TUIs have no scrollback to expose.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 25 selected keyboard/selection/scroll cases passed, including new genuine
+screen swipes in both directions, top-boundary containment, two-finger isolation
+and no PTY input from swiping in a mouse-enabled alternate buffer. The known
+browser-zoom case was excluded; this does not establish working native pinch.
+
+A direct Playwright visual session against the real static executable and DOM
+renderer showed a screen swipe moving history from row 132 to 118, displaying
+scroll-line-118, retaining terminal focus and leaving page scroll at zero.
+This is Chromium mobile emulation; the user will retest Safari on iPhone.
+Updated `build/cross/x86_64/ttyd` and its checksum. No commit, push or release.
+
+### Swipe scrolling with the keyboard closed (2026-11-19)
+
+The user confirmed the keyboard-open swipe behavior works reliably and requested
+the same scrolling with the keyboard closed. Installed-mobile swipe ownership
+and scrollbar protection now depend only on normal page scale, not keyboard
+visibility. Keyboard transitions still cancel any in-progress swipe; the row
+continues to hide with the keyboard. Desktop and normal browser tabs are unchanged.
+
+Frontend checks/production generation and native/static-musl builds passed.
+All 26 selected keyboard/selection/scroll cases passed, including the same
+screen-swipe regression in both keyboard states. The known browser-zoom case
+remains excluded.
+
+A direct Playwright visual session showed a keyboard-closed swipe moving
+scrollback from row 106 to 79, displaying scroll-line-79 with the accessory row
+hidden and page scroll at zero. This is Chromium mobile emulation, not a new
+iPhone test. Updated `build/cross/x86_64/ttyd` and its checksum; no commit,
+push or release.
